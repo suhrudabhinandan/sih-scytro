@@ -63,8 +63,8 @@ const ScannerComponent = ({
     const startMediapipe = async () => {
       try {
         const MP = await import('@mediapipe/tasks-vision');
-        const FilesetResolver = (MP as any).FilesetResolver;
-        const BarcodeScanner = (MP as any).BarcodeScanner;
+        const FilesetResolver = MP.FilesetResolver;
+        const BarcodeScanner = MP.BarcodeScanner;
         if (!FilesetResolver || !BarcodeScanner) {
           throw new Error('MediaPipe BarcodeScanner unavailable');
         }
