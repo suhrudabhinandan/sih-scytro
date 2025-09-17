@@ -45,11 +45,11 @@ const AdminDashboard = ({ setCurrentScreen, slideIn, recentActivity = [] }) => (
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
         <h3 className="font-bold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 gap-4">
-          <button onClick={() => setCurrentScreen('addProduct')} className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-yellow-100 active:scale-95">
+          <button type="button" aria-label="Add Product" role="button" onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') setCurrentScreen('addProduct') }} onClick={() => setCurrentScreen('addProduct')} className="pointer-events-auto bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-yellow-100 active:scale-95">
             <Plus className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
             <p className="font-bold text-gray-900 text-sm">Add Product</p>
           </button>
-          <button onClick={() => setCurrentScreen('manageStock')} className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-blue-100 active:scale-95">
+          <button type="button" aria-label="Manage Stock" role="button" onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') setCurrentScreen('manageStock') }} onClick={() => setCurrentScreen('manageStock')} className="pointer-events-auto bg-blue-50 border border-blue-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-blue-100 active:scale-95">
             <Settings className="w-8 h-8 text-blue-600 mx-auto mb-2" />
             <p className="font-bold text-gray-900 text-sm">Manage Stock</p>
           </button>
