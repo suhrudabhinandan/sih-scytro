@@ -16,7 +16,7 @@ const IntroScreen = ({ setCurrentScreen, fadeIn, bounceIn }) => (
         <div className="w-28 h-28 mx-auto mb-8 bg-white/20 backdrop-blur-sm border border-white/30 rounded-3xl flex items-center justify-center shadow-xl">
           <ShoppingCart className="w-14 h-14 text-white" />
         </div>
-        <h1 className="text-5xl font-bold text-white mb-4 tracking-wider">Scytro</h1>
+        <h1 className="text-5xl font-bold text-white mb-4 tracking-wider font-vierkant">Scytro</h1>
         <div className="w-24 h-px bg-white/30 mx-auto mb-6"></div>
         <p className="text-white/90 text-lg font-medium tracking-wide">
           Self-Mobile Checkout
