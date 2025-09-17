@@ -161,9 +161,19 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 			<div className="p-6 space-y-6">
 				<div className="rounded-2xl overflow-hidden border border-gray-200 bg-black relative">
 					<video ref={videoRef} className="w-full h-64 object-cover" autoPlay muted playsInline />
-				<div className="absolute bottom-3 left-0 right-0 flex justify-center">
-					<p className="bg-black/70 text-white px-4 py-2 rounded-xl text-sm font-medium">{statusText}</p>
-				</div>
+					<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+						<div className="w-72 h-72 border-2 border-yellow-400/70 rounded-3xl relative">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-pulse"></div>
+							<div className="absolute top-4 left-4 w-8 h-8 border-l-2 border-t-2 border-yellow-400"></div>
+							<div className="absolute top-4 right-4 w-8 h-8 border-r-2 border-t-2 border-yellow-400"></div>
+							<div className="absolute bottom-4 left-4 w-8 h-8 border-l-2 border-b-2 border-yellow-400"></div>
+							<div className="absolute bottom-4 right-4 w-8 h-8 border-r-2 border-b-2 border-yellow-400"></div>
+							<div className="scan-line"></div>
+						</div>
+					</div>
+					<div className="absolute bottom-3 left-0 right-0 flex justify-center">
+						<p className="bg-black/70 text-white px-4 py-2 rounded-xl text-sm font-medium">{statusText}</p>
+					</div>
 				</div>
 				{error && <p className="text-red-600 text-sm">{error}</p>}
 
