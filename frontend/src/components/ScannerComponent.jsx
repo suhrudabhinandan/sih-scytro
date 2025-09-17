@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Scan, Plus, Minus, Trash2 } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { FilesetResolver, BarcodeScanner as MPBarcodeScanner } from '@mediapipe/tasks-vision';
 
 const ScannerComponent = ({ 
   videoRef, 
@@ -18,6 +19,9 @@ const ScannerComponent = ({
 }) => {
   const codeReaderRef = useRef(null);
   const isScanningRef = useRef(false);
+  const [statusText, setStatusText] = useState('Scanning...');
+  const mpScannerRef = useRef(null);
+  const rafIdRef = useRef(null);
 
   useEffect(() => {
     const enhancedStart = async () => {
@@ -37,6 +41,54 @@ const ScannerComponent = ({
 
     const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
 
+    const startMediapipe = async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.10/wasm');
+        mpScannerRef.current = await MPBarcodeScanner.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/barcode_scanner/barcode_scanner/float16/1/barcode_scanner.task'
+          },
+          runningMode: 'VIDEO'
+        });
+        return true;
+      } catch (e) {
+        console.warn('[Scanner] MediaPipe init failed, falling back to ZXing', e);
+        mpScannerRef.current = null;
+        return false;
+      }
+    };
+
+    const dispatchDetection = (text) => {
+      const event = new CustomEvent('barcode-scanned', { detail: { text } });
+      window.dispatchEvent(event);
+      setStatusText(`Detected: ${String(text).slice(0, 24)}`);
+      setTimeout(() => setStatusText('Scanning...'), 1500);
+    };
+
+    const loopMediapipe = () => {
+      if (!isScanningRef.current || !videoRef.current || !mpScannerRef.current) return;
+      try {
+        const now = performance.now();
+        const result = mpScannerRef.current.detectForVideo(videoRef.current, now);
+        const code = result?.barcodes?.[0]?.rawValue || result?.barcodes?.[0]?.displayValue;
+        if (code) {
+          console.debug('[Scanner][MP] Detected barcode:', code);
+          successBeep.play().catch(() => {});
+          dispatchDetection(code);
+          // brief pause to avoid rapid duplicates
+          setTimeout(() => {
+            if (isScanningRef.current) {
+              rafIdRef.current = requestAnimationFrame(loopMediapipe);
+            }
+          }, 1000);
+          return;
+        }
+      } catch {}
+      if (isScanningRef.current) {
+        rafIdRef.current = requestAnimationFrame(loopMediapipe);
+      }
+    };
+
     const startScanning = () => {
       if (!videoRef.current || !isScanningRef.current || !codeReaderRef.current) return;
       
@@ -46,9 +98,10 @@ const ScannerComponent = ({
         try {
           const result = await codeReaderRef.current.decodeOnceFromVideoElement(videoRef.current);
           if (result && result.getText) {
+            const text = result.getText();
+            console.debug('[Scanner] Detected barcode:', text);
             successBeep.play().catch(() => {});
-            const event = new CustomEvent('barcode-scanned', { detail: { text: result.getText() } });
-            window.dispatchEvent(event);
+            dispatchDetection(text);
             isScanningRef.current = false;
             setTimeout(() => {
               isScanningRef.current = true;
@@ -57,6 +110,7 @@ const ScannerComponent = ({
             return;
           }
         } catch (e) {
+          // Soft-fail: keep scanning
         }
         
         if (isScanningRef.current) {
@@ -67,10 +121,22 @@ const ScannerComponent = ({
       scanFrame();
     };
 
-    setTimeout(startScanning, 800);
+    (async () => {
+      // Try MediaPipe first
+      const ok = await startMediapipe();
+      if (ok && mpScannerRef.current) {
+        isScanningRef.current = true;
+        rafIdRef.current = requestAnimationFrame(loopMediapipe);
+      } else {
+        // Fallback to ZXing
+        setTimeout(startScanning, 800);
+      }
+    })();
 
     return () => {
       isScanningRef.current = false;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      try { mpScannerRef.current?.close?.(); } catch {}
       try { codeReaderRef.current?.reset(); } catch {}
       stopCamera();
     };
@@ -115,8 +181,8 @@ const ScannerComponent = ({
           </div>
         </div>
         
-        <p className="absolute bottom-1/4 left-0 right-0 text-white/80 text-center font-bold bg-black/30 py-2">
-          Point camera at product barcode
+        <p className="absolute bottom-1/4 left-4 right-4 text-white/90 text-center font-bold bg-black/40 py-2 rounded-xl">
+          {statusText}
         </p>
       </div>
 

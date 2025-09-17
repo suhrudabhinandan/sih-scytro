@@ -34,6 +34,9 @@ export default function Home() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const recentScansRef = useRef<{[code: string]: number}>({})
+  const unknownBarcodeMapRef = useRef<{[code: string]: number}>({})
+  const nextUnknownIdRef = useRef<number>(100000)
 
   const pushActivity = (action: string, detail: string) => {
     setRecentActivity(prev => [{ action, detail, time: 'just now' }, ...prev].slice(0, 10))
@@ -308,6 +311,15 @@ export default function Home() {
     const handler = (e: any) => {
       const code = e.detail?.text as string
       if (!code) return
+
+      // Debounce same barcode within 1.5s to avoid repeated scans
+      const now = Date.now()
+      const lastTs = recentScansRef.current[code] || 0
+      if (now - lastTs < 1500) {
+        return
+      }
+      recentScansRef.current[code] = now
+
       const product = mockDatabase[code]
       if (product) {
         const existingItem = scannedProducts.find(item => item.id === product.id)
@@ -318,6 +330,21 @@ export default function Home() {
         }
         const successSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y')
         successSound.play().catch(() => {})
+        pushActivity('Barcode matched', code)
+      } else {
+        // Track unknown barcodes so users see feedback instead of silence
+        const existingUnknownId = unknownBarcodeMapRef.current[code]
+        const unknownId = existingUnknownId ?? (unknownBarcodeMapRef.current[code] = nextUnknownIdRef.current++)
+        const existingItem = scannedProducts.find(item => item.id === unknownId)
+        if (existingItem) {
+          setScannedProducts(prev => prev.map(item => item.id === unknownId ? { ...item, quantity: item.quantity + 1 } : item))
+        } else {
+          setScannedProducts(prev => [
+            ...prev,
+            { id: unknownId, name: `Unknown (${code})`, brand: 'Unrecognized', price: 0, category: 'Unknown', quantity: 1 }
+          ])
+        }
+        pushActivity('Unknown barcode scanned', code)
       }
     }
     window.addEventListener('barcode-scanned', handler as any)
