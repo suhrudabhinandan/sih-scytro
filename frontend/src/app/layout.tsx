@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 const vierkant = localFont({
 	src: [
-		{ path: '../../public/fonts/CoralPixels-Regular.ttf', weight: '400', style: 'normal' },
+		{ path: './fonts/CoralPixels-Regular.ttf', weight: '400', style: 'normal' },
 	],
 	variable: '--font-vierkant',
 	display: 'swap'
