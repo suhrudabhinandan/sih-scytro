@@ -312,10 +312,10 @@ export default function Home() {
       const code = e.detail?.text as string
       if (!code) return
 
-      // Debounce same barcode within 1.5s to avoid repeated scans
+      // Debounce same barcode within 2.5s to avoid repeated scans
       const now = Date.now()
       const lastTs = recentScansRef.current[code] || 0
-      if (now - lastTs < 1500) {
+      if (now - lastTs < 2500) {
         return
       }
       recentScansRef.current[code] = now

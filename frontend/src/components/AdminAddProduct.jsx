@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { FilesetResolver, BarcodeScanner as MPBarcodeScanner } from '@mediapipe/tasks-vision';
 
 const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 	const [barcode, setBarcode] = useState('');
@@ -15,8 +16,12 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 	const [error, setError] = useState('');
 	const videoRef = useRef(null);
 	const readerRef = useRef(null);
+	const mpScannerRef = useRef(null);
+	const rafIdRef = useRef(null);
 	const streamRef = useRef(null);
 	const nameInputRef = useRef(null);
+	const lastScanTsRef = useRef(0);
+	const [statusText, setStatusText] = useState('Scanning...');
 
 	const startCamera = async () => {
 		if (isStarting || streamRef.current) return;
@@ -53,37 +58,82 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 
 	useEffect(() => {
 		readerRef.current = new BrowserMultiFormatReader();
-		const startScanning = () => {
+
+		const startMediapipe = async () => {
+			try {
+				const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.10/wasm');
+				mpScannerRef.current = await MPBarcodeScanner.createFromOptions(vision, {
+					baseOptions: {
+						modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/barcode_scanner/barcode_scanner/float16/1/barcode_scanner.task',
+						delegate: 'GPU'
+					},
+					runningMode: 'VIDEO'
+				});
+				return true;
+			} catch {
+				mpScannerRef.current = null;
+				return false;
+			}
+		};
+
+		const handleDetected = (code) => {
+			const now = Date.now();
+			if (now - lastScanTsRef.current < 2500) return; // 2.5s cooldown
+			lastScanTsRef.current = now;
+			setBarcode(code);
+			new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y').play().catch(()=>{});
+			setStatusText(`Detected: ${String(code).slice(0,24)}`);
+			setTimeout(()=>{ setStatusText('Scanning...'); nameInputRef.current?.focus(); }, 400);
+		};
+
+		const loopMediapipe = () => {
+			if (!videoRef.current || !scanning || !mpScannerRef.current) return;
+			try {
+				const result = mpScannerRef.current.detectForVideo(videoRef.current, performance.now());
+				const code = result?.barcodes?.[0]?.rawValue || result?.barcodes?.[0]?.displayValue;
+				if (code) {
+					handleDetected(code);
+					setTimeout(() => { if (scanning) { rafIdRef.current = requestAnimationFrame(loopMediapipe); } }, 1000);
+					return;
+				}
+			} catch {}
+			if (scanning) { rafIdRef.current = requestAnimationFrame(loopMediapipe); }
+		};
+
+		const startZXing = () => {
 			if (!videoRef.current || !scanning || !readerRef.current) return;
-			
 			const scanFrame = async () => {
 				if (!videoRef.current || !scanning) return;
 				try {
 					const result = await readerRef.current.decodeOnceFromVideoElement(videoRef.current);
 					if (result && result.getText) {
-						const code = result.getText();
-						setBarcode(code);
-						setScanning(false);
-						new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y').play().catch(()=>{});
-						setTimeout(()=>{ nameInputRef.current?.focus(); }, 50);
+						handleDetected(result.getText());
+						setTimeout(()=>{ if (scanning) setTimeout(scanFrame, 100); }, 1000);
 						return;
 					}
-				} catch (e) {
-					// ignore decode errors
-				}
-				if (scanning) {
-					setTimeout(scanFrame, 120);
-				}
+				} catch {}
+				if (scanning) setTimeout(scanFrame, 120);
 			};
 			scanFrame();
 		};
-		
-		if (scanning) {
-			setTimeout(startScanning, 800);
-		}
-		
+
+		let cancelled = false;
+		(async () => {
+			if (!scanning) return;
+			const ok = await startMediapipe();
+			if (cancelled) return;
+			if (ok && mpScannerRef.current) {
+				rafIdRef.current = requestAnimationFrame(loopMediapipe);
+			} else {
+				setTimeout(startZXing, 500);
+			}
+		})();
+
 		return () => {
+			cancelled = true;
 			try { readerRef.current?.reset(); } catch {}
+			if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+			try { mpScannerRef.current?.close?.(); } catch {}
 		};
 	}, [scanning]);
 
@@ -111,9 +161,9 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 			<div className="p-6 space-y-6">
 				<div className="rounded-2xl overflow-hidden border border-gray-200 bg-black relative">
 					<video ref={videoRef} className="w-full h-64 object-cover" autoPlay muted playsInline />
-					<div className="absolute bottom-3 left-0 right-0 flex justify-center">
-						<p className="bg-black/70 text-white px-4 py-2 rounded-xl text-sm font-medium">Scanning barcodes automatically...</p>
-					</div>
+				<div className="absolute bottom-3 left-0 right-0 flex justify-center">
+					<p className="bg-black/70 text-white px-4 py-2 rounded-xl text-sm font-medium">{statusText}</p>
+				</div>
 				</div>
 				{error && <p className="text-red-600 text-sm">{error}</p>}
 
