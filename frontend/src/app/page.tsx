@@ -13,6 +13,7 @@ import PaymentComponent from '@/components/PaymentComponent'
 import SecurityDashboard from '@/components/SecurityDashboard'
 import QRScannerComponent from '@/components/QRScannerComponent'
 import AdminDashboard from '@/components/AdminDashboard'
+import SupportForm from '@/components/SupportForm'
 
 export default function Home() {
   const router = useRouter()
@@ -359,6 +360,8 @@ export default function Home() {
         return <QRScannerComponent setCurrentScreen={setCurrentScreen} slideIn={slideIn} />
       case 'adminDashboard': 
         return <AdminDashboard setCurrentScreen={setCurrentScreen} slideIn={slideIn} />
+      case 'support':
+        return <SupportForm setCurrentScreen={setCurrentScreen} slideIn={slideIn} />
       default: 
         return <IntroScreen setCurrentScreen={setCurrentScreen} fadeIn={fadeIn} bounceIn={bounceIn} />
     }

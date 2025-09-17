@@ -81,7 +81,7 @@ const UserDashboard = ({ setCurrentScreen, scannedProducts, slideIn }) => (
           </div>
         </button>
 
-        <button className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 transform transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-md">
+        <button onClick={() => setCurrentScreen('support')} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 transform transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-md">
           <div className="text-center">
             <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center mx-auto mb-4">
               <Headphones className="w-6 h-6 text-yellow-600" />

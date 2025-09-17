@@ -136,10 +136,17 @@ const LoginScreen = ({
                   type="text"
                   value={loginType === 'admin' ? adminId : securityId}
                   onChange={(e) => loginType === 'admin' ? setAdminId(e.target.value) : setSecurityId(e.target.value)}
-                  placeholder={`Enter ${loginType} ID`}
+                  placeholder={loginType === 'admin' ? 'Admin ID (format: IA1234)' : 'Security ID (6 characters)'}
                   className="w-full pl-10 pr-4 py-4 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
+                  maxLength={6}
                 />
               </div>
+              {loginType === 'admin' && adminId && !/^IA\d{4}$/.test(adminId) && (
+                <p className="text-xs text-red-600 mt-2 font-medium">Admin ID must be IA followed by 4 digits (e.g., IA1234)</p>
+              )}
+              {loginType === 'security' && securityId && securityId.length !== 6 && (
+                <p className="text-xs text-red-600 mt-2 font-medium">Security ID must be exactly 6 characters</p>
+              )}
             </div>
 
             <div>
@@ -174,10 +181,8 @@ const LoginScreen = ({
             onClick={sendOTP}
             disabled={
               (loginType === 'user' && phoneNumber.length !== 10) ||
-              (loginType !== 'user' && (
-                (loginType === 'admin' ? adminId.length < 3 : securityId.length < 3) ||
-                password.length < 6
-              )) ||
+              (loginType === 'admin' && (!/^IA\d{4}$/.test(adminId) || password.length < 6)) ||
+              (loginType === 'security' && (securityId.length !== 6 || password.length < 6)) ||
               isLoading
             }
             className="w-full bg-yellow-500 text-white font-bold py-4 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:bg-yellow-600 active:scale-95"
