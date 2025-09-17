@@ -188,15 +188,41 @@ export default function Home() {
   }
 
   const sendOTP = () => {
-    if (phoneNumber.length === 10) {
-      setIsLoading(true)
-      setTimeout(() => {
-        setOtpSent(true)
-        setIsLoading(false)
+    if (loginType === 'user') {
+      if (phoneNumber.length === 10) {
+        setIsLoading(true)
         setTimeout(() => {
-          otpRefs.current[0]?.focus()
-        }, 100)
-      }, 2000)
+          setOtpSent(true)
+          setIsLoading(false)
+          setTimeout(() => {
+            otpRefs.current[0]?.focus()
+          }, 100)
+        }, 2000)
+      }
+    } else if (loginType === 'admin') {
+      const isValidAdminId = /^IA\d{4}$/.test(adminId)
+      if (isValidAdminId && password.length >= 6) {
+        setIsLoading(true)
+        setTimeout(() => {
+          setOtpSent(true)
+          setIsLoading(false)
+          setTimeout(() => {
+            otpRefs.current[0]?.focus()
+          }, 100)
+        }, 1000)
+      }
+    } else if (loginType === 'security') {
+      const isValidSecurityId = securityId.length === 6
+      if (isValidSecurityId && password.length >= 6) {
+        setIsLoading(true)
+        setTimeout(() => {
+          setOtpSent(true)
+          setIsLoading(false)
+          setTimeout(() => {
+            otpRefs.current[0]?.focus()
+          }, 100)
+        }, 1000)
+      }
     }
   }
 
