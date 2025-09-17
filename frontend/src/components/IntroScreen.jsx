@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { ShoppingCart, LogIn } from 'lucide-react';
-import Image from 'next/image';
 
 const IntroScreen = ({ setCurrentScreen, fadeIn, bounceIn }) => (
   <div className={`min-h-screen bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 flex flex-col ${fadeIn}`}>
@@ -14,8 +13,8 @@ const IntroScreen = ({ setCurrentScreen, fadeIn, bounceIn }) => (
     
     <div className="flex-1 flex flex-col justify-center items-center px-6 relative z-10">
       <div className={`text-center mb-16 ${bounceIn}`}>
-        <div className="w-28 h-28 mx-auto mb-8 bg-white/20 backdrop-blur-sm border border-white/30 rounded-3xl flex items-center justify-center shadow-xl overflow-hidden">
-          <Image src="/logo.png" alt="Scytro logo" width={56} height={56} className="w-14 h-14 object-contain" priority />
+        <div className="w-28 h-28 mx-auto mb-8 bg-white/20 backdrop-blur-sm border border-white/30 rounded-3xl flex items-center justify-center shadow-xl">
+          <ShoppingCart className="w-14 h-14 text-white" />
         </div>
         <h1 className="text-5xl font-bold text-white mb-4 tracking-wider">Scytro</h1>
         <div className="w-24 h-px bg-white/30 mx-auto mb-6"></div>
