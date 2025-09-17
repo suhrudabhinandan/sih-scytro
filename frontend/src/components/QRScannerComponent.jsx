@@ -77,7 +77,7 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 					<div className="relative">
 						<div className="w-80 h-96 rounded-3xl relative overflow-hidden border-2 border-yellow-400/30">
 							{/* Live video */}
-							<video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+							<video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
 							{/* Overlay frame */}
 							<div className="pointer-events-none absolute inset-0">
 								<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-pulse"></div>
