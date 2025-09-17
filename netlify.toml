@@ -1,0 +1,12 @@
+# Netlify configuration for Next.js app in subdirectory
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+# Use Next.js runtime for SSR and routing
+[functions]
+  node_bundler = "esbuild"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
