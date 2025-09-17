@@ -3,7 +3,7 @@
 import React from 'react';
 import { BarChart3, Package, Users, Plus, Settings, Headphones } from 'lucide-react';
 
-const AdminDashboard = ({ setCurrentScreen, slideIn, recentActivity = [] }) => (
+const AdminDashboard = ({ setCurrentScreen, slideIn, recentActivity = [] /** @type {any[]} */ }) => (
   <div className={`min-h-screen bg-gray-50 ${slideIn}`}>
     <div className="bg-white p-6 border-b border-gray-100">
       <div className="flex justify-between items-center">
