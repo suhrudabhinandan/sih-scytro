@@ -20,7 +20,18 @@ const ScannerComponent = ({
   const isScanningRef = useRef(false);
 
   useEffect(() => {
-    startCamera();
+    const enhancedStart = async () => {
+      await startCamera();
+      try {
+        const stream = videoRef.current?.srcObject;
+        const track = stream?.getVideoTracks?.()[0];
+        if (track?.applyConstraints) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        }
+      } catch {}
+    };
+
+    enhancedStart();
     codeReaderRef.current = new BrowserMultiFormatReader();
     isScanningRef.current = true;
 
@@ -35,13 +46,9 @@ const ScannerComponent = ({
         try {
           const result = await codeReaderRef.current.decodeOnceFromVideoElement(videoRef.current);
           if (result && result.getText) {
-            console.log('Barcode detected:', result.getText());
-            // play beep
             successBeep.play().catch(() => {});
-            // Use existing simulate path: push product by barcode if in mock DB via page-level handler
             const event = new CustomEvent('barcode-scanned', { detail: { text: result.getText() } });
             window.dispatchEvent(event);
-            // Stop scanning briefly to avoid duplicate scans
             isScanningRef.current = false;
             setTimeout(() => {
               isScanningRef.current = true;
@@ -50,10 +57,8 @@ const ScannerComponent = ({
             return;
           }
         } catch (e) {
-          // ignore decode errors, continue scanning
         }
         
-        // Continue scanning
         if (isScanningRef.current) {
           setTimeout(scanFrame, 100);
         }
@@ -62,8 +67,7 @@ const ScannerComponent = ({
       scanFrame();
     };
 
-    // Start scanning after a short delay to ensure video is ready
-    setTimeout(startScanning, 1000);
+    setTimeout(startScanning, 800);
 
     return () => {
       isScanningRef.current = false;
@@ -110,7 +114,6 @@ const ScannerComponent = ({
             <div className="absolute bottom-4 right-4 w-8 h-8 border-r-2 border-b-2 border-yellow-400"></div>
           </div>
         </div>
-        
         
         <p className="absolute bottom-1/4 left-0 right-0 text-white/80 text-center font-bold bg-black/30 py-2">
           Point camera at product barcode

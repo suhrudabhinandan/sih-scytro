@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Camera, Save, RefreshCw } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 
 const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
@@ -16,6 +16,7 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 	const videoRef = useRef(null);
 	const readerRef = useRef(null);
 	const streamRef = useRef(null);
+	const nameInputRef = useRef(null);
 
 	const startCamera = async () => {
 		if (isStarting || streamRef.current) return;
@@ -24,6 +25,8 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
 			streamRef.current = stream;
+			const [track] = stream.getVideoTracks();
+			try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch {}
 			if (videoRef.current) {
 				videoRef.current.srcObject = stream;
 				await videoRef.current.play().catch(()=>{});
@@ -59,10 +62,10 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 					const result = await readerRef.current.decodeOnceFromVideoElement(videoRef.current);
 					if (result && result.getText) {
 						const code = result.getText();
-						console.log('Admin barcode detected:', code);
 						setBarcode(code);
 						setScanning(false);
 						new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y').play().catch(()=>{});
+						setTimeout(()=>{ nameInputRef.current?.focus(); }, 50);
 						return;
 					}
 				} catch (e) {
@@ -116,7 +119,7 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 
 				<form onSubmit={submit} className="space-y-4">
 					<input className="w-full p-4 border border-gray-200 rounded-2xl" placeholder="Scanned Barcode" value={barcode} readOnly />
-					<input className="w-full p-4 border border-gray-200 rounded-2xl" placeholder="Product Name" value={name} onChange={e=>setName(e.target.value)} required />
+					<input ref={nameInputRef} className="w-full p-4 border border-gray-200 rounded-2xl" placeholder="Product Name" value={name} onChange={e=>setName(e.target.value)} required />
 					<input className="w-full p-4 border border-gray-200 rounded-2xl" placeholder="Product Type" value={type} onChange={e=>setType(e.target.value)} required />
 					<input type="number" min="0" step="0.01" className="w-full p-4 border border-gray-200 rounded-2xl" placeholder="Price" value={price} onChange={e=>setPrice(e.target.value)} required />
 					<input className="w-full p-4 border border-gray-200 rounded-2xl" placeholder="Product ID (SKU)" value={productId} onChange={e=>setProductId(e.target.value)} required />
