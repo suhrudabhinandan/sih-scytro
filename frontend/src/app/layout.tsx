@@ -16,6 +16,13 @@ const vierkant = localFont({
 export const metadata: Metadata = {
   title: 'Scytro - Self-Mobile Checkout',
   description: 'Self-Mobile Checkout App - Scan • Pay • Go',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: [{ url: '/favicon.ico' }],
+  },
 }
 
 export default function RootLayout({
