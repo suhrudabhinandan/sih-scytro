@@ -6,10 +6,11 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 const vierkant = localFont({
-	src: '/fonts/architype-vierkant.woff2',
+	src: [
+		{ path: '/fonts/Architype Vierkant W00.ttf', weight: '400', style: 'normal' },
+	],
 	variable: '--font-vierkant',
-	display: 'swap',
-	weight: '400'
+	display: 'swap'
 })
 
 export const metadata: Metadata = {
