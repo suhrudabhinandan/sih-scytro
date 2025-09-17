@@ -143,21 +143,8 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 			</div>
 
 			{!scanResult && (
-				<div className="p-6 grid grid-cols-2 gap-3">
-					<button 
-						onClick={startCamera}
-						disabled={isStarting || !!streamRef.current}
-						className="bg-yellow-500 text-white font-bold py-4 rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2"
-					>
-						<Camera className="w-5 h-5" /> {isStarting ? 'Starting…' : 'Start Camera'}
-					</button>
-					<button 
-						onClick={stopCamera}
-						disabled={!streamRef.current}
-						className="bg-white text-gray-900 border border-gray-200 font-bold py-4 rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2"
-					>
-						<StopCircle className="w-5 h-5" /> Stop Camera
-					</button>
+				<div className="p-6">
+					<p className="text-white/80 text-center font-medium">Scanning QR codes automatically...</p>
 				</div>
 			)}
 		</div>

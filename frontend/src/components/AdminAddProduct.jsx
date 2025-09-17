@@ -108,9 +108,8 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 			<div className="p-6 space-y-6">
 				<div className="rounded-2xl overflow-hidden border border-gray-200 bg-black relative">
 					<video ref={videoRef} className="w-full h-64 object-cover" autoPlay muted playsInline />
-					<div className="absolute bottom-3 left-0 right-0 flex justify-center gap-3">
-						<button onClick={startCamera} disabled={isStarting || !!streamRef.current} className="bg-white text-gray-900 border border-gray-200 font-bold py-2 px-4 rounded-xl">{isStarting ? 'Starting…' : 'Start Camera'}</button>
-						<button onClick={stopCamera} disabled={!streamRef.current} className="bg-white text-gray-900 border border-gray-200 font-bold py-2 px-4 rounded-xl">Stop</button>
+					<div className="absolute bottom-3 left-0 right-0 flex justify-center">
+						<p className="bg-black/70 text-white px-4 py-2 rounded-xl text-sm font-medium">Scanning barcodes automatically...</p>
 					</div>
 				</div>
 				{error && <p className="text-red-600 text-sm">{error}</p>}

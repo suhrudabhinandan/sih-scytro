@@ -111,11 +111,6 @@ const ScannerComponent = ({
           </div>
         </div>
         
-        {(!videoRef.current || !videoRef.current.srcObject) && (
-          <div className="absolute inset-0 flex items-end justify-center pb-24">
-            <button onClick={startCamera} className="bg-white/90 text-gray-900 border border-gray-200 font-bold py-2 px-4 rounded-xl">Start Camera</button>
-          </div>
-        )}
         
         <p className="absolute bottom-1/4 left-0 right-0 text-white/80 text-center font-bold bg-black/30 py-2">
           Point camera at product barcode
