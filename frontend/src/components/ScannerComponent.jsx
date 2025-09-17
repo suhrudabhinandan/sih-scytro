@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ArrowLeft, Scan, Plus, Minus, Trash2 } from 'lucide-react';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 const ScannerComponent = ({ 
   videoRef, 
@@ -15,9 +16,42 @@ const ScannerComponent = ({
   removeProduct, 
   slideIn 
 }) => {
+  const codeReaderRef = useRef(null);
+  const isScanningRef = useRef(false);
+
   useEffect(() => {
     startCamera();
-    return () => stopCamera();
+    codeReaderRef.current = new BrowserMultiFormatReader();
+    isScanningRef.current = true;
+
+    const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
+
+    const decodeLoop = async () => {
+      if (!videoRef.current || !isScanningRef.current || !codeReaderRef.current) return;
+      try {
+        const result = await codeReaderRef.current.decodeOnceFromVideoElement(videoRef.current);
+        if (result && result.getText) {
+          // play beep
+          successBeep.play().catch(() => {});
+          // Use existing simulate path: push product by barcode if in mock DB via page-level handler
+          const event = new CustomEvent('barcode-scanned', { detail: { text: result.getText() } });
+          window.dispatchEvent(event);
+        }
+      } catch (e) {
+        // ignore transient decode errors
+      } finally {
+        // continue scanning
+        if (isScanningRef.current) requestAnimationFrame(decodeLoop);
+      }
+    };
+
+    requestAnimationFrame(decodeLoop);
+
+    return () => {
+      isScanningRef.current = false;
+      try { codeReaderRef.current?.reset(); } catch {}
+      stopCamera();
+    };
   }, []);
 
   return (
@@ -67,12 +101,6 @@ const ScannerComponent = ({
       <div className="bg-white rounded-t-3xl p-6 max-h-80 flex flex-col">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-gray-900">Scanned Items ({scannedProducts.length})</h3>
-          <button 
-            onClick={simulateBarcodeScan}
-            className="bg-yellow-500 text-white px-4 py-2 rounded-xl text-sm font-bold"
-          >
-            Simulate Scan
-          </button>
         </div>
         
         <div className="flex-1 overflow-y-auto space-y-3">
@@ -80,7 +108,7 @@ const ScannerComponent = ({
             <div className="text-center py-8">
               <Scan className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 font-bold">No items scanned yet</p>
-              <p className="text-gray-400 text-sm font-medium">Point camera at barcode or use simulate button</p>
+              <p className="text-gray-400 text-sm font-medium">Point camera at barcode</p>
             </div>
           ) : (
             scannedProducts.map((item) => (

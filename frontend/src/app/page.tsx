@@ -298,6 +298,26 @@ export default function Home() {
     }
   }, [])
 
+  useEffect(() => {
+    const handler = (e: any) => {
+      const code = e.detail?.text as string
+      if (!code) return
+      const product = mockDatabase[code]
+      if (product) {
+        const existingItem = scannedProducts.find(item => item.id === product.id)
+        if (existingItem) {
+          setScannedProducts(prev => prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item))
+        } else {
+          setScannedProducts(prev => [...prev, { ...product, quantity: 1 }])
+        }
+        const successSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y')
+        successSound.play().catch(() => {})
+      }
+    }
+    window.addEventListener('barcode-scanned', handler as any)
+    return () => window.removeEventListener('barcode-scanned', handler as any)
+  }, [scannedProducts])
+
   // Screen Router
   const renderScreen = () => {
     switch(currentScreen) {

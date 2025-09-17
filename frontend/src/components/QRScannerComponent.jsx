@@ -2,13 +2,16 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, QrCode, CheckCircle, XCircle, Camera, StopCircle } from 'lucide-react';
+import jsQR from 'jsqr';
 
 const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 	const [scanResult, setScanResult] = useState(null);
 	const [isStarting, setIsStarting] = useState(false);
 	const [error, setError] = useState('');
 	const videoRef = useRef(null);
+	const canvasRef = useRef(null);
 	const streamRef = useRef(null);
+	const isScanningRef = useRef(false);
 
 	const startCamera = async () => {
 		if (isStarting || streamRef.current) return;
@@ -24,6 +27,8 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 				videoRef.current.srcObject = stream;
 				await videoRef.current.play().catch(() => {});
 			}
+			isScanningRef.current = true;
+			requestAnimationFrame(scanLoop);
 		} catch (e) {
 			setError('Camera access denied or unavailable.');
 		} finally {
@@ -32,6 +37,7 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 	};
 
 	const stopCamera = () => {
+		isScanningRef.current = false;
 		if (streamRef.current) {
 			streamRef.current.getTracks().forEach(t => t.stop());
 			streamRef.current = null;
@@ -42,21 +48,39 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 	};
 
 	useEffect(() => {
-		// Auto start camera on mount
 		startCamera();
 		return () => {
 			stopCamera();
 		};
 	}, []);
 
-	const simulateScan = () => {
-		const results = ['verified', 'already_scanned', 'invalid'];
-		const result = results[Math.floor(Math.random() * results.length)];
-		setScanResult(result);
-		setTimeout(() => {
-			setScanResult(null);
-			setCurrentScreen('securityDashboard');
-		}, 2000);
+	const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
+
+	const scanLoop = () => {
+		if (!isScanningRef.current || !videoRef.current) return;
+		const video = videoRef.current;
+		const canvas = canvasRef.current || document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+		canvas.width = video.videoWidth;
+		canvas.height = video.videoHeight;
+		ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+		const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		const code = jsQR(imageData.data, canvas.width, canvas.height);
+		if (code && code.data) {
+			successBeep.play().catch(() => {});
+			// Demo classification
+			const outcomes = ['verified', 'already_scanned', 'invalid'];
+			const result = outcomes[Math.floor(Math.random() * outcomes.length)];
+			setScanResult(result);
+			isScanningRef.current = false;
+			setTimeout(() => {
+				setScanResult(null);
+				setCurrentScreen('securityDashboard');
+			}, 2000);
+			return;
+		}
+		requestAnimationFrame(scanLoop);
 	};
 
 	return (
@@ -76,15 +100,14 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 				{!scanResult ? (
 					<div className="relative">
 						<div className="w-80 h-96 rounded-3xl relative overflow-hidden border-2 border-yellow-400/30">
-							{/* Live video */}
 							<video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-							{/* Overlay frame */}
 							<div className="pointer-events-none absolute inset-0">
 								<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-pulse"></div>
 								<div className="absolute top-4 left-4 w-8 h-8 border-l-2 border-t-2 border-yellow-400"></div>
 								<div className="absolute top-4 right-4 w-8 h-8 border-r-2 border-t-2 border-yellow-400"></div>
 								<div className="absolute bottom-4 left-4 w-8 h-8 border-l-2 border-b-2 border-yellow-400"></div>
 								<div className="absolute bottom-4 right-4 w-8 h-8 border-r-2 border-b-2 border-yellow-400"></div>
+								<canvas ref={canvasRef} className="hidden" />
 							</div>
 						</div>
 						{error && <p className="text-red-400 text-center mt-3 font-medium">{error}</p>}
@@ -131,12 +154,6 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 						className="bg-white text-gray-900 border border-gray-200 font-bold py-4 rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2"
 					>
 						<StopCircle className="w-5 h-5" /> Stop Camera
-					</button>
-					<button 
-						onClick={simulateScan}
-						className="col-span-2 bg-yellow-600 text-white font-bold py-4 rounded-2xl"
-					>
-						Simulate QR Scan
 					</button>
 				</div>
 			)}
