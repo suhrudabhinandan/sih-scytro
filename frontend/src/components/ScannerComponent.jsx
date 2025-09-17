@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Scan, Plus, Minus, Trash2 } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
-import { FilesetResolver, BarcodeScanner as MPBarcodeScanner } from '@mediapipe/tasks-vision';
+// MediaPipe is imported dynamically at runtime to avoid build-time export issues across versions
 
 const ScannerComponent = ({ 
   videoRef, 
@@ -62,8 +62,14 @@ const ScannerComponent = ({
 
     const startMediapipe = async () => {
       try {
+        const MP = await import('@mediapipe/tasks-vision');
+        const FilesetResolver = (MP as any).FilesetResolver;
+        const BarcodeScanner = (MP as any).BarcodeScanner;
+        if (!FilesetResolver || !BarcodeScanner) {
+          throw new Error('MediaPipe BarcodeScanner unavailable');
+        }
         const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.10/wasm');
-        mpScannerRef.current = await MPBarcodeScanner.createFromOptions(vision, {
+        mpScannerRef.current = await BarcodeScanner.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/barcode_scanner/barcode_scanner/float16/1/barcode_scanner.task',
             delegate: 'GPU'
