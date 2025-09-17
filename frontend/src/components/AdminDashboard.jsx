@@ -1,9 +1,9 @@
 'use client'
 
 import React from 'react';
-import { BarChart3, Package, Users, Plus, Settings } from 'lucide-react';
+import { BarChart3, Package, Users, Plus, Settings, Headphones } from 'lucide-react';
 
-const AdminDashboard = ({ setCurrentScreen, slideIn }) => (
+const AdminDashboard = ({ setCurrentScreen, slideIn, recentActivity = [] }) => (
   <div className={`min-h-screen bg-gray-50 ${slideIn}`}>
     <div className="bg-white p-6 border-b border-gray-100">
       <div className="flex justify-between items-center">
@@ -45,12 +45,12 @@ const AdminDashboard = ({ setCurrentScreen, slideIn }) => (
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
         <h3 className="font-bold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 gap-4">
-          <button className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-yellow-100 active:scale-95">
+          <button onClick={() => setCurrentScreen('addProduct')} className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-yellow-100 active:scale-95">
             <Plus className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
             <p className="font-bold text-gray-900 text-sm">Add Product</p>
           </button>
-          <button className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-blue-100 active:scale-95">
-            <Package className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+          <button onClick={() => setCurrentScreen('manageStock')} className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center transform transition-all duration-200 hover:bg-blue-100 active:scale-95">
+            <Settings className="w-8 h-8 text-blue-600 mx-auto mb-2" />
             <p className="font-bold text-gray-900 text-sm">Manage Stock</p>
           </button>
         </div>
@@ -59,19 +59,19 @@ const AdminDashboard = ({ setCurrentScreen, slideIn }) => (
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
         <h3 className="font-bold text-gray-900 mb-4">Recent Activity</h3>
         <div className="space-y-3">
-          {[
-            { action: 'Product added', item: 'Tata Salt 1kg', time: '2 mins ago' },
-            { action: 'Stock updated', item: 'Maggi Noodles', time: '15 mins ago' },
-            { action: 'Sale completed', item: '₹195 transaction', time: '23 mins ago' }
-          ].map((activity, index) => (
-            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-              <div>
-                <p className="font-bold text-gray-900 text-sm">{activity.action}</p>
-                <p className="text-xs text-gray-600">{activity.item}</p>
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-gray-500">No recent actions yet</p>
+          ) : (
+            recentActivity.map((activity, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">{activity.action}</p>
+                  <p className="text-xs text-gray-600">{activity.detail}</p>
+                </div>
+                <span className="text-xs text-gray-500">{activity.time}</span>
               </div>
-              <span className="text-xs text-gray-500">{activity.time}</span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>

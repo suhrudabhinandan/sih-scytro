@@ -14,6 +14,7 @@ import SecurityDashboard from '@/components/SecurityDashboard'
 import QRScannerComponent from '@/components/QRScannerComponent'
 import AdminDashboard from '@/components/AdminDashboard'
 import SupportForm from '@/components/SupportForm'
+import AdminAddProduct from '@/components/AdminAddProduct'
 
 export default function Home() {
   const router = useRouter()
@@ -32,6 +33,11 @@ export default function Home() {
   const [loginType, setLoginType] = useState('user')
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [isScanning, setIsScanning] = useState(false)
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
+
+  const pushActivity = (action: string, detail: string) => {
+    setRecentActivity(prev => [{ action, detail, time: 'just now' }, ...prev].slice(0, 10))
+  }
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -412,7 +418,11 @@ export default function Home() {
       case 'qrScanner': 
         return <QRScannerComponent setCurrentScreen={setCurrentScreen} slideIn={slideIn} />
       case 'adminDashboard': 
-        return <AdminDashboard setCurrentScreen={setCurrentScreen} slideIn={slideIn} />
+        return <AdminDashboard setCurrentScreen={setCurrentScreen} slideIn={slideIn} recentActivity={recentActivity} />
+      case 'addProduct':
+        return <AdminAddProduct setCurrentScreen={setCurrentScreen} slideIn={slideIn} onProductAdded={(p:any)=>{ pushActivity('Product added', `${p.name} (${p.barcode})`); }} />
+      case 'manageStock':
+        return <div className={`min-h-screen bg-gray-50 ${slideIn}`}><div className="p-6"><p className="text-gray-600">Manage Stock UI coming soon</p></div></div>
       case 'support':
         return <SupportForm setCurrentScreen={setCurrentScreen} slideIn={slideIn} />
       default: 
