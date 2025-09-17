@@ -188,6 +188,7 @@ export default function Home() {
   }
 
   const sendOTP = () => {
+    const delayMs = 2000
     if (loginType === 'user') {
       if (phoneNumber.length === 10) {
         setIsLoading(true)
@@ -197,11 +198,12 @@ export default function Home() {
           setTimeout(() => {
             otpRefs.current[0]?.focus()
           }, 100)
-        }, 2000)
+        }, delayMs)
       }
     } else if (loginType === 'admin') {
       const isValidAdminId = /^IA\d{4}$/.test(adminId)
-      if (isValidAdminId && password.length >= 6) {
+      const isValidPassword = password.length >= 6 && password.length <= 16
+      if (isValidAdminId && isValidPassword) {
         setIsLoading(true)
         setTimeout(() => {
           setOtpSent(true)
@@ -209,11 +211,12 @@ export default function Home() {
           setTimeout(() => {
             otpRefs.current[0]?.focus()
           }, 100)
-        }, 1000)
+        }, delayMs)
       }
     } else if (loginType === 'security') {
-      const isValidSecurityId = securityId.length === 6
-      if (isValidSecurityId && password.length >= 6) {
+      const isValidSecurityId = /^SA\d{4}$/.test(securityId)
+      const isValidPassword = password.length >= 6 && password.length <= 16
+      if (isValidSecurityId && isValidPassword) {
         setIsLoading(true)
         setTimeout(() => {
           setOtpSent(true)
@@ -221,7 +224,7 @@ export default function Home() {
           setTimeout(() => {
             otpRefs.current[0]?.focus()
           }, 100)
-        }, 1000)
+        }, delayMs)
       }
     }
   }
@@ -240,24 +243,28 @@ export default function Home() {
         }, 2000)
       }
     } else if (loginType === 'admin') {
-      if (adminId.length >= 3 && password.length >= 6 && otpString.length === 6) {
+      const isValidAdminId = /^IA\d{4}$/.test(adminId)
+      const isValidPassword = password.length >= 6 && password.length <= 16
+      if (isValidAdminId && isValidPassword && otpString.length === 6) {
         setIsLoading(true)
         setTimeout(() => {
           setUser({ adminId: adminId, type: 'admin' })
           setCurrentScreen('adminDashboard')
           setIsLoading(false)
           resetForm()
-        }, 2000)
+        }, 1000)
       }
     } else if (loginType === 'security') {
-      if (securityId.length >= 3 && password.length >= 6 && otpString.length === 6) {
+      const isValidSecurityId = /^SA\d{4}$/.test(securityId)
+      const isValidPassword = password.length >= 6 && password.length <= 16
+      if (isValidSecurityId && isValidPassword && otpString.length === 6) {
         setIsLoading(true)
         setTimeout(() => {
           setUser({ securityId: securityId, type: 'security' })
           setCurrentScreen('securityDashboard')
           setIsLoading(false)
           resetForm()
-        }, 2000)
+        }, 1000)
       }
     }
   }

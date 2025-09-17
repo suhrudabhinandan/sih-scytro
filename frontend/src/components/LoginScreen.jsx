@@ -136,7 +136,7 @@ const LoginScreen = ({
                   type="text"
                   value={loginType === 'admin' ? adminId : securityId}
                   onChange={(e) => loginType === 'admin' ? setAdminId(e.target.value) : setSecurityId(e.target.value)}
-                  placeholder={loginType === 'admin' ? 'Admin ID (format: IA1234)' : 'Security ID (6 characters)'}
+                  placeholder={loginType === 'admin' ? 'Admin ID (format: IA1234)' : 'Security ID (format: SA1234)'}
                   className="w-full pl-10 pr-4 py-4 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
                   maxLength={6}
                 />
@@ -144,8 +144,8 @@ const LoginScreen = ({
               {loginType === 'admin' && adminId && !/^IA\d{4}$/.test(adminId) && (
                 <p className="text-xs text-red-600 mt-2 font-medium">Admin ID must be IA followed by 4 digits (e.g., IA1234)</p>
               )}
-              {loginType === 'security' && securityId && securityId.length !== 6 && (
-                <p className="text-xs text-red-600 mt-2 font-medium">Security ID must be exactly 6 characters</p>
+              {loginType === 'security' && securityId && !/^SA\d{4}$/.test(securityId) && (
+                <p className="text-xs text-red-600 mt-2 font-medium">Security ID must be SA followed by 4 digits (e.g., SA1234)</p>
               )}
             </div>
 
@@ -157,8 +157,9 @@ const LoginScreen = ({
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder="Enter password (6-16 characters)"
                   className="w-full pl-10 pr-12 py-4 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
+                  maxLength={16}
                 />
                 <button
                   type="button"
@@ -172,6 +173,9 @@ const LoginScreen = ({
                   )}
                 </button>
               </div>
+              {(password.length > 0 && (password.length < 6 || password.length > 16)) && (
+                <p className="text-xs text-red-600 mt-2 font-medium">Password must be 6-16 characters</p>
+              )}
             </div>
           </>
         )}
@@ -181,8 +185,8 @@ const LoginScreen = ({
             onClick={sendOTP}
             disabled={
               (loginType === 'user' && phoneNumber.length !== 10) ||
-              (loginType === 'admin' && (!/^IA\d{4}$/.test(adminId) || password.length < 6)) ||
-              (loginType === 'security' && (securityId.length !== 6 || password.length < 6)) ||
+              (loginType === 'admin' && (!/^IA\d{4}$/.test(adminId) || password.length < 6 || password.length > 16)) ||
+              (loginType === 'security' && (!/^SA\d{4}$/.test(securityId) || password.length < 6 || password.length > 16)) ||
               isLoading
             }
             className="w-full bg-yellow-500 text-white font-bold py-4 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:bg-yellow-600 active:scale-95"
