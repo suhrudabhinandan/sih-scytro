@@ -22,6 +22,16 @@ const ScannerComponent = ({
   const [statusText, setStatusText] = useState('Scanning...');
   const mpScannerRef = useRef(null);
   const rafIdRef = useRef(null);
+  const cameraTrackRef = useRef(null);
+  const cameraCapsRef = useRef(null);
+  const supportsZoomRef = useRef(false);
+  const baseZoomRef = useRef(1);
+  const currentZoomRef = useRef(1);
+  const pinchStartDistRef = useRef(0);
+  const pinchStartZoomRef = useRef(1);
+  const pointersRef = useRef(new Map());
+  const [cssScale, setCssScale] = useState(1);
+  const frameSkipRef = useRef(0);
 
   useEffect(() => {
     const enhancedStart = async () => {
@@ -31,6 +41,15 @@ const ScannerComponent = ({
         const track = stream?.getVideoTracks?.()[0];
         if (track?.applyConstraints) {
           await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        }
+        cameraTrackRef.current = track || null;
+        const caps = track?.getCapabilities?.() || null;
+        cameraCapsRef.current = caps;
+        if (caps && typeof caps.zoom === 'object' && typeof caps.zoom.min === 'number') {
+          supportsZoomRef.current = true;
+          // Initialize zoom near default if provided
+          baseZoomRef.current = track.getSettings?.().zoom ?? 1;
+          currentZoomRef.current = baseZoomRef.current;
         }
       } catch {}
     };
@@ -46,7 +65,8 @@ const ScannerComponent = ({
         const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.10/wasm');
         mpScannerRef.current = await MPBarcodeScanner.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/barcode_scanner/barcode_scanner/float16/1/barcode_scanner.task'
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/barcode_scanner/barcode_scanner/float16/1/barcode_scanner.task',
+            delegate: 'GPU'
           },
           runningMode: 'VIDEO'
         });
@@ -68,8 +88,10 @@ const ScannerComponent = ({
     const loopMediapipe = () => {
       if (!isScanningRef.current || !videoRef.current || !mpScannerRef.current) return;
       try {
+        // Light throttling for performance on low-end devices
+        frameSkipRef.current = (frameSkipRef.current + 1) % 2;
         const now = performance.now();
-        const result = mpScannerRef.current.detectForVideo(videoRef.current, now);
+        const result = frameSkipRef.current === 0 ? mpScannerRef.current.detectForVideo(videoRef.current, now) : null;
         const code = result?.barcodes?.[0]?.rawValue || result?.barcodes?.[0]?.displayValue;
         if (code) {
           console.debug('[Scanner][MP] Detected barcode:', code);
@@ -142,6 +164,76 @@ const ScannerComponent = ({
     };
   }, []);
 
+  // Zoom helpers
+  const applyZoom = async (value) => {
+    const track = cameraTrackRef.current;
+    const caps = cameraCapsRef.current;
+    if (supportsZoomRef.current && track && caps) {
+      const min = caps.zoom.min ?? 1;
+      const max = caps.zoom.max ?? 5;
+      const clamped = Math.min(max, Math.max(min, value));
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: clamped }] });
+        currentZoomRef.current = clamped;
+        setStatusText(`Zoom: ${clamped.toFixed(2)}x`);
+        setTimeout(() => setStatusText('Scanning...'), 800);
+      } catch {
+        // fallback to CSS scale
+        const css = Math.min(3, Math.max(1, value));
+        setCssScale(css);
+        setStatusText(`Zoom (preview): ${css.toFixed(2)}x`);
+        setTimeout(() => setStatusText('Scanning...'), 800);
+      }
+    } else {
+      const css = Math.min(3, Math.max(1, value));
+      setCssScale(css);
+      setStatusText(`Zoom (preview): ${css.toFixed(2)}x`);
+      setTimeout(() => setStatusText('Scanning...'), 800);
+    }
+  };
+
+  const onPointerDown = (e) => {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2) {
+      const pts = Array.from(pointersRef.current.values());
+      const dx = pts[0].x - pts[1].x;
+      const dy = pts[0].y - pts[1].y;
+      pinchStartDistRef.current = Math.hypot(dx, dy);
+      pinchStartZoomRef.current = currentZoomRef.current;
+    }
+  };
+
+  const onPointerMove = (e) => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2 && pinchStartDistRef.current > 0) {
+      const pts = Array.from(pointersRef.current.values());
+      const dx = pts[0].x - pts[1].x;
+      const dy = pts[0].y - pts[1].y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0) {
+        const scale = dist / pinchStartDistRef.current;
+        const target = pinchStartZoomRef.current * scale;
+        applyZoom(target);
+      }
+    }
+  };
+
+  const onPointerUp = (e) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchStartDistRef.current = 0;
+    }
+  };
+
+  const onWheel = (e) => {
+    const delta = e.deltaY;
+    const step = -delta * 0.0015; // small increments
+    const next = (currentZoomRef.current || 1) + step;
+    applyZoom(next);
+  };
+
   return (
     <div className={`min-h-screen bg-black flex flex-col ${slideIn}`}>
       <div className="flex justify-between items-center p-6 bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-20">
@@ -160,13 +252,14 @@ const ScannerComponent = ({
         </div>
       </div>
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel}>
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
           autoPlay
           playsInline
           muted
+          style={{ transform: cssScale !== 1 ? `scale(${cssScale})` : undefined, transformOrigin: 'center center' }}
         />
         <canvas ref={canvasRef} className="hidden" />
         
