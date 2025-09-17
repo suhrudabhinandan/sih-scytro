@@ -26,26 +26,44 @@ const ScannerComponent = ({
 
     const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
 
-    const decodeLoop = async () => {
+    const startScanning = () => {
       if (!videoRef.current || !isScanningRef.current || !codeReaderRef.current) return;
-      try {
-        const result = await codeReaderRef.current.decodeOnceFromVideoElement(videoRef.current);
-        if (result && result.getText) {
-          // play beep
-          successBeep.play().catch(() => {});
-          // Use existing simulate path: push product by barcode if in mock DB via page-level handler
-          const event = new CustomEvent('barcode-scanned', { detail: { text: result.getText() } });
-          window.dispatchEvent(event);
+      
+      const scanFrame = async () => {
+        if (!isScanningRef.current || !videoRef.current) return;
+        
+        try {
+          const result = await codeReaderRef.current.decodeOnceFromVideoElement(videoRef.current);
+          if (result && result.getText) {
+            console.log('Barcode detected:', result.getText());
+            // play beep
+            successBeep.play().catch(() => {});
+            // Use existing simulate path: push product by barcode if in mock DB via page-level handler
+            const event = new CustomEvent('barcode-scanned', { detail: { text: result.getText() } });
+            window.dispatchEvent(event);
+            // Stop scanning briefly to avoid duplicate scans
+            isScanningRef.current = false;
+            setTimeout(() => {
+              isScanningRef.current = true;
+              startScanning();
+            }, 1000);
+            return;
+          }
+        } catch (e) {
+          // ignore decode errors, continue scanning
         }
-      } catch (e) {
-        // ignore transient decode errors
-      } finally {
-        // continue scanning
-        if (isScanningRef.current) requestAnimationFrame(decodeLoop);
-      }
+        
+        // Continue scanning
+        if (isScanningRef.current) {
+          setTimeout(scanFrame, 100);
+        }
+      };
+
+      scanFrame();
     };
 
-    requestAnimationFrame(decodeLoop);
+    // Start scanning after a short delay to ensure video is ready
+    setTimeout(startScanning, 1000);
 
     return () => {
       isScanningRef.current = false;

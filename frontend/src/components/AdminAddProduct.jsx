@@ -16,35 +16,38 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 
 	useEffect(() => {
 		readerRef.current = new BrowserMultiFormatReader();
-		const start = async () => {
-			try {
-				await readerRef.current.decodeOnceFromVideoDevice(undefined, videoRef.current);
-			} catch {}
+		const startScanning = () => {
+			if (!videoRef.current || !scanning || !readerRef.current) return;
+			
+			const scanFrame = async () => {
+				if (!videoRef.current || !scanning) return;
+				try {
+					const result = await readerRef.current.decodeOnceFromVideoElement(videoRef.current);
+					if (result && result.getText) {
+						const code = result.getText();
+						console.log('Admin barcode detected:', code);
+						setBarcode(code);
+						setScanning(false);
+						new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y').play().catch(()=>{});
+						return;
+					}
+				} catch (e) {
+					// ignore decode errors
+				}
+				if (scanning) {
+					setTimeout(scanFrame, 100);
+				}
+			};
+			scanFrame();
 		};
+		
 		if (scanning) {
-			start();
+			setTimeout(startScanning, 1000);
 		}
+		
 		return () => {
 			try { readerRef.current?.reset(); } catch {}
 		};
-	}, [scanning]);
-
-	useEffect(() => {
-		if (!readerRef.current) return;
-		const poll = async () => {
-			if (!videoRef.current || !scanning) return;
-			try {
-				const result = await readerRef.current.decodeOnceFromVideoElement(videoRef.current);
-				if (result && result.getText) {
-					const code = result.getText();
-					setBarcode(code);
-					setScanning(false);
-					new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y').play().catch(()=>{});
-				}
-			} catch {}
-			requestAnimationFrame(poll);
-		};
-		requestAnimationFrame(poll);
 	}, [scanning]);
 
 	const resetForNext = () => {

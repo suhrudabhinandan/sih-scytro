@@ -68,6 +68,7 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 		const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 		const code = jsQR(imageData.data, canvas.width, canvas.height);
 		if (code && code.data) {
+			console.log('QR Code detected:', code.data);
 			successBeep.play().catch(() => {});
 			// Demo classification
 			const outcomes = ['verified', 'already_scanned', 'invalid'];
@@ -80,7 +81,9 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 			}, 2000);
 			return;
 		}
-		requestAnimationFrame(scanLoop);
+		if (isScanningRef.current) {
+			setTimeout(scanLoop, 100);
+		}
 	};
 
 	return (
