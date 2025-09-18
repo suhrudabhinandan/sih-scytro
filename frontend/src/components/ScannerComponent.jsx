@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Scan, Plus, Minus, Trash2, Zap, ZapOff } from 'lucide-react';
+import { ArrowLeft, Scan, Plus, Minus, Trash2 } from 'lucide-react';
 import { BrowserMultiFormatReader, BarcodeFormat } from '@zxing/browser';
 import { BinaryBitmap, HybridBinarizer, RGBLuminanceSource, DecodeHintType } from '@zxing/library';
 import jsQR from 'jsqr';
@@ -34,8 +34,6 @@ const ScannerComponent = ({
   const pointersRef = useRef(new Map());
   const [cssScale, setCssScale] = useState(1);
   const frameSkipRef = useRef(0);
-  const [torchEnabled, setTorchEnabled] = useState(false);
-  const [torchSupported, setTorchSupported] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
 
   // Enhanced camera initialization with proper focus and torch support
@@ -85,9 +83,6 @@ const ScannerComponent = ({
         }]
       };
       await track.applyConstraints(settings);
-      if (capabilities.torch) {
-        setTorchSupported(true);
-      }
       setScannerReady(true);
       setStatusText('Camera ready - scanning...');
     } catch (error) {
@@ -95,6 +90,63 @@ const ScannerComponent = ({
       setStatusText('Camera error: Unable to access camera');
       setCameraError('Unable to access camera.\n\nPossible reasons:\n- Permission denied (check browser settings)\n- Not using HTTPS (required for camera access)\n- No camera device found\n- Another app is using the camera\n\nTry refreshing, allowing permissions, or using a different browser/device.');
       setScannerReady(false);
+    }
+  };
+
+  // Comprehensive camera cleanup function
+  const cleanupCamera = async () => {
+    try {
+      console.log('[Scanner] Cleaning up camera...');
+      
+      // Stop all scanning processes
+      isScanningRef.current = false;
+      setScannerReady(false);
+      
+      // Cancel animation frames
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      
+      // Close MediaPipe scanner
+      try {
+        mpScannerRef.current?.close?.();
+        mpScannerRef.current = null;
+      } catch (error) {
+        console.warn('[Scanner] Error closing MediaPipe scanner:', error);
+      }
+      
+      // Reset ZXing reader
+      try {
+        codeReaderRef.current?.reset();
+        codeReaderRef.current = null;
+      } catch (error) {
+        console.warn('[Scanner] Error resetting ZXing reader:', error);
+      }
+      
+      // Stop camera stream
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject;
+        const tracks = stream.getTracks();
+        
+        tracks.forEach(track => {
+          console.log(`[Scanner] Stopping track: ${track.kind}`);
+          track.stop();
+        });
+        
+        videoRef.current.srcObject = null;
+      }
+      
+      // Clear camera references
+      cameraTrackRef.current = null;
+      cameraCapsRef.current = null;
+      
+      // Call parent's stopCamera as backup
+      stopCamera();
+      
+      console.log('[Scanner] Camera cleanup completed');
+    } catch (error) {
+      console.error('[Scanner] Error during camera cleanup:', error);
     }
   };
 
@@ -388,55 +440,34 @@ const ScannerComponent = ({
     
     initializeScanner();
 
+    // Add cleanup on page unload
+    const handleBeforeUnload = () => {
+      cleanupCamera();
+    };
+    
+    // Add visibility change handler to stop camera when tab is hidden
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('[Scanner] Tab hidden - pausing camera');
+        isScanningRef.current = false;
+      } else {
+        console.log('[Scanner] Tab visible - resuming scanning');
+        if (scannerReady) {
+          isScanningRef.current = true;
+        }
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     return () => {
-      isScanningRef.current = false;
-      setScannerReady(false);
-      
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-      
-      try {
-        mpScannerRef.current?.close?.();
-        mpScannerRef.current = null;
-      } catch (error) {
-        console.warn('Error closing MediaPipe scanner:', error);
-      }
-      
-      try {
-        codeReaderRef.current?.reset();
-        codeReaderRef.current = null;
-      } catch (error) {
-        console.warn('Error resetting ZXing reader:', error);
-      }
-      
-      stopCamera();
+      cleanupCamera();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
-  // Torch/flashlight control
-  const toggleTorch = async () => {
-    if (!torchSupported || !cameraTrackRef.current) {
-      setStatusText('Flashlight not supported');
-      setTimeout(() => setStatusText('Scanning...'), 1500);
-      return;
-    }
-    
-    try {
-      const newTorchState = !torchEnabled;
-      await cameraTrackRef.current.applyConstraints({
-        advanced: [{ torch: newTorchState }]
-      });
-      setTorchEnabled(newTorchState);
-      setStatusText(newTorchState ? 'Flashlight ON' : 'Flashlight OFF');
-      setTimeout(() => setStatusText('Scanning...'), 1000);
-    } catch (error) {
-      console.warn('Failed to toggle torch:', error);
-      setStatusText('Flashlight control failed');
-      setTimeout(() => setStatusText('Scanning...'), 1500);
-    }
-  };
 
   // Zoom helpers
   const applyZoom = async (value) => {
@@ -550,8 +581,8 @@ const ScannerComponent = ({
     <div className={`min-h-screen bg-black flex flex-col ${slideIn}`}>
       <div className="flex justify-between items-center p-6 bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-20">
         <button 
-          onClick={() => {
-            stopCamera();
+          onClick={async () => {
+            await cleanupCamera();
             setCurrentScreen('userDashboard');
           }}
           className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20"
@@ -560,20 +591,8 @@ const ScannerComponent = ({
         </button>
         <h2 className="text-white font-bold">Scan Products</h2>
         <div className="flex items-center space-x-2">
-          {torchSupported && (
-            <button 
-              onClick={toggleTorch}
-              className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm border transition-colors ${
-                torchEnabled 
-                  ? 'bg-yellow-500/30 border-yellow-400/50 text-yellow-400' 
-                  : 'bg-white/10 border-white/20 text-white'
-              }`}
-            >
-              {torchEnabled ? <Zap className="w-5 h-5" /> : <ZapOff className="w-5 h-5" />}
-            </button>
-          )}
-          <div className="w-10 h-10 bg-yellow-500/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-yellow-400/30">
-            <span className="text-yellow-400 text-sm font-bold">{scannedProducts.reduce((sum, item) => sum + item.quantity, 0)}</span>
+          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30">
+            <span className="text-white text-sm font-bold">{scannedProducts.reduce((sum, item) => sum + item.quantity, 0)}</span>
           </div>
         </div>
       </div>
@@ -601,28 +620,18 @@ const ScannerComponent = ({
             />
             <canvas ref={canvasRef} className="hidden" />
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className={`w-72 h-72 border-2 rounded-3xl relative transition-all duration-300 ${
-                scannerReady ? 'border-yellow-400/70 scan-pulse' : 'border-yellow-400/40'
-              }`}>
-                {/* Focus ring animation */}
-                {scannerReady && <div className="scan-focus"></div>}
-                {/* Enhanced scanning line */}
-                {scannerReady && <div className="scan-line"></div>}
-                {/* Center crosshair */}
+              <div className="w-72 h-72 border-2 border-white/50 rounded-3xl relative">
+                {/* Simple center crosshair */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-8 h-0.5 bg-yellow-400/60 rounded-full"></div>
-                  <div className="absolute w-0.5 h-8 bg-yellow-400/60 rounded-full"></div>
+                  <div className="w-8 h-0.5 bg-white/80 rounded-full"></div>
+                  <div className="absolute w-0.5 h-8 bg-white/80 rounded-full"></div>
                 </div>
               </div>
             </div>
             <div className="absolute bottom-1/4 left-4 right-4 text-center">
-              <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-all duration-300 ${
-                scannerReady 
-                  ? 'bg-green-500/20 border border-green-400/30 text-green-300'
-                  : 'bg-yellow-500/20 border border-yellow-400/30 text-yellow-300'
-              }`}>
+              <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-bold bg-black/50 border border-white/30 text-white">
                 <div className={`w-2 h-2 rounded-full ${
-                  scannerReady ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-bounce'
+                  scannerReady ? 'bg-green-400' : 'bg-white'
                 }`}></div>
                 <span>{statusText}</span>
               </div>
@@ -679,8 +688,8 @@ const ScannerComponent = ({
 
         {scannedProducts.length > 0 && (
           <button 
-            onClick={() => {
-              stopCamera();
+            onClick={async () => {
+              await cleanupCamera();
               setCurrentScreen('cart');
             }}
             className="w-full bg-yellow-500 text-white font-bold py-4 rounded-2xl mt-4 transform transition-all duration-200 hover:bg-yellow-600 active:scale-95"
