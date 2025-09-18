@@ -1,16 +1,37 @@
 // ... existing code ...
 
-// Improved camera initialization with high-resolution settings
+// Improved camera initialization with advanced constraints for best camera
 const initializeCamera = async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    // Get list of all available video devices first
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    
+    // Try to use the back camera with highest capabilities
+    const constraints = {
       video: {
         facingMode: 'environment',
-        width: { ideal: 4096 },
-        height: { ideal: 3072 },
-        frameRate: { ideal: 30 }
+        width: { ideal: 4096, min: 1280 },
+        height: { ideal: 3072, min: 720 },
+        aspectRatio: { ideal: 4/3 },
+        frameRate: { ideal: 30 },
+        // Request advanced camera capabilities
+        advanced: [
+          { zoom: { ideal: 2.0 } },
+          { focusMode: { ideal: "continuous" } },
+          { exposureMode: { ideal: "continuous" } },
+          { whiteBalanceMode: { ideal: "continuous" } }
+        ]
       }
-    });
+    };
+    
+    // If we have multiple cameras, try to select the best one
+    if (videoDevices.length > 1) {
+      console.log(`Found ${videoDevices.length} cameras, attempting to use best available`);
+      // We'll try with the advanced constraints first
+    }
+    
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
@@ -22,6 +43,14 @@ const initializeCamera = async () => {
     
     // Set camera status to active
     setCameraActive(true);
+    console.log('Camera initialized with advanced settings');
+    
+    // Log the actual track settings to verify which camera was selected
+    const videoTrack = stream.getVideoTracks()[0];
+    console.log('Using camera:', videoTrack.label);
+    console.log('Camera capabilities:', videoTrack.getCapabilities());
+    console.log('Active settings:', videoTrack.getSettings());
+    
   } catch (error) {
     console.error('Camera initialization failed:', error);
     setError('Failed to access camera. Please check permissions and try again.');
