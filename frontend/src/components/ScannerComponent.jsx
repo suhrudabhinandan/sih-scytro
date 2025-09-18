@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Scan, Plus, Minus, Trash2, Zap, ZapOff } from 'lucide-react';
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/browser';
 import { BinaryBitmap, HybridBinarizer, RGBLuminanceSource } from '@zxing/library';
+import jsQR from 'jsqr';
 // MediaPipe is imported dynamically at runtime to avoid build-time export issues across versions
 
 const ScannerComponent = ({ 
@@ -165,23 +166,32 @@ const ScannerComponent = ({
         }
       };
 
+      // In dispatchDetection, use the real product database if available
       const dispatchDetection = (text) => {
-        const event = new CustomEvent('barcode-scanned', { detail: { text } });
-        window.dispatchEvent(event);
-        
-        // Add mock product data for testing
-        const mockProduct = {
-          id: Date.now(),
-          name: `Product ${text}`,
-          brand: 'Test Brand',
-          price: Math.floor(Math.random() * 1000) + 100,
-          quantity: 1
-        };
-        
-        // Add product to cart
-        simulateBarcodeScan(mockProduct);
-        
-        setStatusText(`✓ Added: ${mockProduct.name}`);
+        console.log('[Scanner][DispatchDetection] Barcode/QR detected:', text);
+        // Try to match barcode with real product database if available
+        if (typeof window !== 'undefined' && window.mockDatabase) {
+          const product = window.mockDatabase[text];
+          if (product) {
+            simulateBarcodeScan({ ...product, quantity: 1 });
+            setStatusText(`✓ Added: ${product.name}`);
+          } else {
+            // Unknown barcode
+            simulateBarcodeScan({ id: Date.now(), name: `Unknown (${text})`, brand: 'Unrecognized', price: 0, quantity: 1 });
+            setStatusText(`Unknown barcode: ${text}`);
+          }
+        } else {
+          // Fallback to mock product
+          const mockProduct = {
+            id: Date.now(),
+            name: `Product ${text}`,
+            brand: 'Test Brand',
+            price: Math.floor(Math.random() * 1000) + 100,
+            quantity: 1
+          };
+          simulateBarcodeScan(mockProduct);
+          setStatusText(`✓ Added: ${mockProduct.name}`);
+        }
         setTimeout(() => {
           if (scannerReady) setStatusText('Scanning...');
         }, 2000);
@@ -213,12 +223,26 @@ const ScannerComponent = ({
             }
             context.putImageData(imageData, 0, 0);
             
+            // ZXing barcode detection
             const result = await codeReaderRef.current.decodeFromCanvas(canvas);
             if (result && result.getText) {
               const text = result.getText();
               console.log('[Scanner][ZXing] Detected:', text);
-              successBeep.play().catch(() => {});
               dispatchDetection(text);
+              
+              setTimeout(() => {
+                if (isScanningRef.current) {
+                  zxingScanLoop();
+                }
+              }, 1500);
+              return;
+            }
+            // jsQR fallback for QR code
+            const imageDataForQR = context.getImageData(0, 0, canvas.width, canvas.height);
+            const qrResult = jsQR(imageDataForQR.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+            if (qrResult && qrResult.data) {
+              console.log('[Scanner][jsQR] QR Detected:', qrResult.data);
+              dispatchDetection(qrResult.data);
               
               setTimeout(() => {
                 if (isScanningRef.current) {
@@ -229,7 +253,7 @@ const ScannerComponent = ({
             }
           }
         } catch (error) {
-          // Continue scanning despite errors
+          console.warn('[Scanner][ZXing/jsQR] Scan error:', error);
         }
         
         // Continue scanning with shorter interval

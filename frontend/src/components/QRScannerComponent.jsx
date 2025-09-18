@@ -182,14 +182,13 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 				}
 				
 				lastDetectionTimeRef.current = now;
-				console.log('QR Code detected:', code.data);
+				console.log('[QRScanner][jsQR] QR Code detected:', code.data);
 				successBeep.play().catch(() => {});
 				setStatusText(`✓ QR Code detected!`);
 				
-				// Demo classification - replace with actual verification logic
-				const outcomes = ['verified', 'already_scanned', 'invalid'];
-				const result = outcomes[Math.floor(Math.random() * outcomes.length)];
-				setScanResult(result);
+				// Fire a custom event for real QR code actions
+				window.dispatchEvent(new CustomEvent('qr-code-scanned', { detail: { data: code.data } }));
+				setScanResult('verified'); // For demo, mark as verified
 				isScanningRef.current = false;
 				
 				setTimeout(() => {
@@ -200,7 +199,7 @@ const QRScannerComponent = ({ setCurrentScreen, slideIn }) => {
 			}
 			
 		} catch (error) {
-			console.warn('QR scanning error:', error);
+			console.warn('[QRScanner][jsQR] Scan error:', error);
 		}
 		
 		// Continue scanning at higher frequency for better detection
