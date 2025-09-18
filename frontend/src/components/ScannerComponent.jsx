@@ -971,3 +971,5 @@ const ScannerComponent = ({
   );
 };
 
+export default ScannerComponent;
+
