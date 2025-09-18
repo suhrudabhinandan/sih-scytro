@@ -37,23 +37,32 @@ export default function Home() {
   const recentScansRef = useRef<{[code: string]: number}>({})
   const unknownBarcodeMapRef = useRef<{[code: string]: number}>({})
   const nextUnknownIdRef = useRef<number>(100000)
-
-  const pushActivity = (action: string, detail: string) => {
-    setRecentActivity(prev => [{ action, detail, time: 'just now' }, ...prev].slice(0, 10))
-  }
   
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
-
-  // Mock database products
-  const mockDatabase: { [key: string]: { id: number; name: string; brand: string; price: number; category: string } } = {
+  // Product database - make it globally accessible and updateable
+  const [productDatabase, setProductDatabase] = useState<{ [key: string]: { id: number; name: string; brand: string; price: number; category: string } }>({
     '8901030895146': { id: 1, name: 'Tata Salt', brand: '1kg Pack', price: 28, category: 'Grocery' },
     '8901552490067': { id: 2, name: 'Maggi Noodles', brand: '70g Pack', price: 14, category: 'Instant Food' },
     '8901030875056': { id: 3, name: 'Britannia Bread', brand: 'Whole Wheat', price: 45, category: 'Bakery' },
     '8901030869765': { id: 4, name: 'Amul Milk', brand: '1 Litre', price: 60, category: 'Dairy' },
     '8901030895123': { id: 5, name: 'Fortune Oil', brand: '1L Refined', price: 165, category: 'Cooking' }
+  })
+
+  const pushActivity = (action: string, detail: string) => {
+    setRecentActivity(prev => [{ action, detail, time: 'just now' }, ...prev].slice(0, 10))
   }
+  
+  // Function to add new product to database
+  const addProductToDatabase = (barcode: string, product: any) => {
+    setProductDatabase(prev => ({ ...prev, [barcode]: product }))
+    // Also make it available globally for scanner components
+    if (typeof window !== 'undefined') {
+      window.productDatabase = { ...productDatabase, [barcode]: product }
+    }
+  }
+  
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Animation classes
   const slideIn = "animate-in slide-in-from-right duration-300"
@@ -294,6 +303,13 @@ export default function Home() {
     setLoginType('user')
   }
 
+  // Make product database globally available
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.productDatabase = productDatabase
+    }
+  }, [productDatabase])
+  
   useEffect(() => {
     return () => {
       stopCamera()
@@ -313,7 +329,7 @@ export default function Home() {
       }
       recentScansRef.current[code] = now
 
-      const product = mockDatabase[code]
+      const product = productDatabase[code]
       if (product) {
         const existingItem = scannedProducts.find(item => item.id === product.id)
         if (existingItem) {
@@ -440,7 +456,20 @@ export default function Home() {
       case 'adminDashboard': 
         return <AdminDashboard setCurrentScreen={setCurrentScreen} slideIn={slideIn} recentActivity={recentActivity} />
       case 'addProduct':
-        return <AdminAddProduct setCurrentScreen={setCurrentScreen} slideIn={slideIn} onProductAdded={(p:any)=>{ pushActivity('Product added', `${p.name} (${p.barcode})`); }} />
+        return <AdminAddProduct 
+          setCurrentScreen={setCurrentScreen} 
+          slideIn={slideIn} 
+          onProductAdded={(p:any)=>{ 
+            // Add to database when admin adds a product
+            addProductToDatabase(p.barcode, {
+              id: Date.now(), // Generate unique ID
+              name: p.name,
+              brand: p.type, // Use type as brand
+              price: p.price,
+              category: p.type
+            });
+            pushActivity('Product added', `${p.name} (${p.barcode})`); 
+          }} />
       case 'manageStock':
         return <div className={`min-h-screen bg-gray-50 ${slideIn}`}><div className="p-6"><p className="text-gray-600">Manage Stock UI coming soon</p></div></div>
       case 'support':

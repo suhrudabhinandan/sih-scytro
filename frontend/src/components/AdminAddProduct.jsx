@@ -80,15 +80,29 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 			}
 		};
 
-		const handleDetected = (code) => {
-			const now = Date.now();
-			if (now - lastScanTsRef.current < 2500) return; // 2.5s cooldown
-			lastScanTsRef.current = now;
-			setBarcode(code);
-			new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y').play().catch(()=>{});
-			setStatusText(`Detected: ${String(code).slice(0,24)}`);
-			setTimeout(()=>{ setStatusText('Scanning...'); nameInputRef.current?.focus(); }, 400);
-		};
+  const handleDetected = (code) => {
+    const now = Date.now();
+    if (now - lastScanTsRef.current < 2500) return; // 2.5s cooldown
+    lastScanTsRef.current = now;
+    
+    setBarcode(code);
+    setScanning(false); // Stop scanning after detection
+    
+    // Enhanced audio feedback
+    try {
+      const beepSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
+      beepSound.volume = 0.6;
+      beepSound.play().catch(() => {});
+    } catch (error) {
+      console.warn('Audio feedback failed:', error);
+    }
+    
+    setStatusText(`✓ Barcode captured: ${String(code).slice(-8)}`);
+    setTimeout(() => { 
+      setStatusText('Enter product details below'); 
+      nameInputRef.current?.focus(); 
+    }, 1000);
+  };
 
 		const loopMediapipe = () => {
 			if (!videoRef.current || !scanning || !mpScannerRef.current) return;
@@ -141,16 +155,43 @@ const AdminAddProduct = ({ setCurrentScreen, onProductAdded, slideIn }) => {
 		};
 	}, [scanning]);
 
-	const resetForNext = () => {
-		setBarcode(''); setName(''); setType(''); setPrice(''); setProductId(''); setScanning(true);
-	};
+  const resetForNext = () => {
+    setBarcode(''); 
+    setName(''); 
+    setType(''); 
+    setPrice(''); 
+    setProductId(''); 
+    setScanning(true);
+    setStatusText('Scanning for new product...');
+    lastScanTsRef.current = 0; // Reset scan timeout
+  };
 
-	const submit = (e) => {
-		e.preventDefault();
-		const product = { barcode, name, type, price: Number(price), productId, createdAt: new Date().toISOString() };
-		onProductAdded?.(product);
-		resetForNext();
-	};
+  const submit = (e) => {
+    e.preventDefault();
+    
+    if (!barcode || !name || !type || !price || !productId) {
+      alert('Please fill in all fields');
+      return;
+    }
+    
+    const product = { 
+      barcode, 
+      name, 
+      type, 
+      price: Number(price), 
+      productId, 
+      createdAt: new Date().toISOString() 
+    };
+    
+    console.log('[AdminAddProduct] Adding product to database:', product);
+    onProductAdded?.(product);
+    
+    // Show success message
+    setStatusText('✅ Product added successfully!');
+    setTimeout(() => {
+      resetForNext();
+    }, 1500);
+  };
 
 	return (
 		<div className={`min-h-screen bg-gray-50 ${slideIn}`}>
