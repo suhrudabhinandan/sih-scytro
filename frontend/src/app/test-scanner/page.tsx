@@ -1,11 +1,29 @@
 'use client';
 
-import React, { useState } from 'react';
-import SimpleBarcodeScanner from '@/components/SimpleBarcodeScanner';
+import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+// Import SimpleBarcodeScanner only on client-side to avoid SSR issues
+const SimpleBarcodeScanner = dynamic(() => import('@/components/SimpleBarcodeScanner'), {
+  ssr: false,
+  loading: () => <div style={{ 
+    textAlign: 'center', 
+    padding: '50px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '10px',
+    margin: '20px 0'
+  }}>Loading scanner...</div>
+});
 
 export default function TestScanner() {
   const [detections, setDetections] = useState<string[]>([]);
   const [error, setError] = useState<string>('');
+  const [isClient, setIsClient] = useState(false);
+  
+  // Ensure we're on the client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleDetection = (barcode: string) => {
     console.log('Barcode detected:', barcode);
@@ -156,24 +174,27 @@ export default function TestScanner() {
         </div>
 
         {/* Debug Info */}
-        <div style={{ 
-          backgroundColor: '#343a40',
-          color: 'white',
-          borderRadius: '10px',
-          padding: '15px',
-          marginTop: '20px',
-          fontSize: '12px'
-        }}>
-          <h4 style={{ margin: '0 0 10px 0' }}>🔧 Debug Information:</h4>
-          <div>
-            <strong>Protocol:</strong> {typeof window !== 'undefined' ? window.location.protocol : 'unknown'}<br/>
-            <strong>Hostname:</strong> {typeof window !== 'undefined' ? window.location.hostname : 'unknown'}<br/>
-            <strong>User Agent:</strong> {typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'}<br/>
-            <strong>MediaDevices:</strong> {typeof navigator !== 'undefined' && navigator.mediaDevices ? '✅ Available' : '❌ Not Available'}<br/>
-            <strong>BarcodeDetector:</strong> {typeof window !== 'undefined' && 'BarcodeDetector' in window ? '✅ Native Support' : '❌ Not Supported'}<br/>
-            <strong>Current Time:</strong> {new Date().toLocaleString()}
+        {/* Debug Info - Only show on client */}
+        {isClient && (
+          <div style={{ 
+            backgroundColor: '#343a40',
+            color: 'white',
+            borderRadius: '10px',
+            padding: '15px',
+            marginTop: '20px',
+            fontSize: '12px'
+          }}>
+            <h4 style={{ margin: '0 0 10px 0' }}>🔧 Debug Information:</h4>
+            <div>
+              <strong>Protocol:</strong> {window.location.protocol}<br/>
+              <strong>Hostname:</strong> {window.location.hostname}<br/>
+              <strong>User Agent:</strong> {navigator.userAgent.slice(0, 80)}...<br/>
+              <strong>MediaDevices:</strong> {navigator.mediaDevices ? '✅ Available' : '❌ Not Available'}<br/>
+              <strong>BarcodeDetector:</strong> {'BarcodeDetector' in window ? '✅ Native Support' : '❌ Not Supported'}<br/>
+              <strong>Current Time:</strong> {new Date().toLocaleString()}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Back to Main App */}
         <div style={{ 
