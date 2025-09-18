@@ -131,7 +131,16 @@ const ScannerComponent = ({
       codeReaderRef.current = new BrowserMultiFormatReader(hints);
       isScanningRef.current = true;
 
-      const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
+      // Utility for feedback
+      const playFeedback = () => {
+        // Play beep
+        const beep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
+        beep.play().catch(() => {});
+        // Vibrate (if supported)
+        if (navigator.vibrate) {
+          navigator.vibrate(80);
+        }
+      };
 
       // MediaPipe initialization with better error handling
       const initializeMediaPipe = async () => {
@@ -169,6 +178,7 @@ const ScannerComponent = ({
       // In dispatchDetection, use the real product database if available
       const dispatchDetection = (text) => {
         console.log('[Scanner][DispatchDetection] Barcode/QR detected:', text);
+        playFeedback();
         // Try to match barcode with real product database if available
         if (typeof window !== 'undefined' && window.mockDatabase) {
           const product = window.mockDatabase[text];
@@ -282,7 +292,6 @@ const ScannerComponent = ({
               
               if (code && code.length > 0) {
                 console.log('[Scanner][MediaPipe] Detected:', code);
-                successBeep.play().catch(() => {});
                 dispatchDetection(code);
                 
                 // Pause briefly to avoid duplicates
@@ -540,12 +549,6 @@ const ScannerComponent = ({
             {/* Focus ring animation */}
             {scannerReady && <div className="scan-focus"></div>}
             
-            {/* Corner indicators */}
-            <div className="absolute top-4 left-4 w-8 h-8 border-l-2 border-t-2 border-yellow-400 scan-corner"></div>
-            <div className="absolute top-4 right-4 w-8 h-8 border-r-2 border-t-2 border-yellow-400 scan-corner"></div>
-            <div className="absolute bottom-4 left-4 w-8 h-8 border-l-2 border-b-2 border-yellow-400 scan-corner"></div>
-            <div className="absolute bottom-4 right-4 w-8 h-8 border-r-2 border-b-2 border-yellow-400 scan-corner"></div>
-
             {/* Enhanced scanning line */}
             {scannerReady && <div className="scan-line"></div>}
             
