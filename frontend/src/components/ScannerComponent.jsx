@@ -168,10 +168,74 @@ const ScannerComponent = ({
       const dispatchDetection = (text) => {
         const event = new CustomEvent('barcode-scanned', { detail: { text } });
         window.dispatchEvent(event);
-        setStatusText(`✓ Detected: ${String(text).slice(0, 20)}`);
+        
+        // Add mock product data for testing
+        const mockProduct = {
+          id: Date.now(),
+          name: `Product ${text}`,
+          brand: 'Test Brand',
+          price: Math.floor(Math.random() * 1000) + 100,
+          quantity: 1
+        };
+        
+        // Add product to cart
+        simulateBarcodeScan(mockProduct);
+        
+        setStatusText(`✓ Added: ${mockProduct.name}`);
         setTimeout(() => {
           if (scannerReady) setStatusText('Scanning...');
         }, 2000);
+      };
+      
+      // Enhanced ZXing scanning with better detection
+      const zxingScanLoop = async () => {
+        if (!isScanningRef.current || !videoRef.current || !codeReaderRef.current || !scannerReady) {
+          return;
+        }
+        
+        try {
+          // Increase contrast and brightness for better detection
+          if (canvasRef.current) {
+            const canvas = canvasRef.current;
+            const context = canvas.getContext('2d');
+            const video = videoRef.current;
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Enhance image
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < imageData.data.length; i += 4) {
+              imageData.data[i] = imageData.data[i] * 1.2; // Red
+              imageData.data[i + 1] = imageData.data[i + 1] * 1.2; // Green
+              imageData.data[i + 2] = imageData.data[i + 2] * 1.2; // Blue
+            }
+            context.putImageData(imageData, 0, 0);
+            
+            const result = await codeReaderRef.current.decodeFromCanvas(canvas);
+            if (result && result.getText) {
+              const text = result.getText();
+              console.log('[Scanner][ZXing] Detected:', text);
+              successBeep.play().catch(() => {});
+              dispatchDetection(text);
+              
+              setTimeout(() => {
+                if (isScanningRef.current) {
+                  zxingScanLoop();
+                }
+              }, 1500);
+              return;
+            }
+          }
+        } catch (error) {
+          // Continue scanning despite errors
+        }
+        
+        // Continue scanning with shorter interval
+        if (isScanningRef.current) {
+          setTimeout(zxingScanLoop, 100);
+        }
       };
 
       // Optimized MediaPipe scanning loop
@@ -213,72 +277,6 @@ const ScannerComponent = ({
         
         if (isScanningRef.current) {
           rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
-        }
-      };
-
-      // Enhanced ZXing scanning with canvas processing
-      const zxingScanLoop = async () => {
-        if (!isScanningRef.current || !videoRef.current || !codeReaderRef.current || !scannerReady) {
-          return;
-        }
-        
-        try {
-          // Method 1: Direct video element scanning
-          const result = await codeReaderRef.current.decodeOnceFromVideoElement(videoRef.current);
-          if (result && result.getText) {
-            const text = result.getText();
-            console.log('[Scanner][ZXing] Detected:', text);
-            successBeep.play().catch(() => {});
-            dispatchDetection(text);
-            
-            setTimeout(() => {
-              if (isScanningRef.current) {
-                zxingScanLoop();
-              }
-            }, 1500);
-            return;
-          }
-        } catch (error) {
-          // Method 2: Canvas-based scanning for better control
-          try {
-            if (!canvasRef.current) {
-              canvasRef.current = document.createElement('canvas');
-            }
-            
-            const canvas = canvasRef.current;
-            const context = canvas.getContext('2d');
-            const video = videoRef.current;
-            
-            if (context && video.videoWidth > 0 && video.videoHeight > 0) {
-              canvas.width = video.videoWidth;
-              canvas.height = video.videoHeight;
-              context.drawImage(video, 0, 0, canvas.width, canvas.height);
-              
-              const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-              const result = await codeReaderRef.current.decodeFromImageData(imageData);
-              
-              if (result && result.getText) {
-                const text = result.getText();
-                console.log('[Scanner][ZXing-Canvas] Detected:', text);
-                successBeep.play().catch(() => {});
-                dispatchDetection(text);
-                
-                setTimeout(() => {
-                  if (isScanningRef.current) {
-                    zxingScanLoop();
-                  }
-                }, 1500);
-                return;
-              }
-            }
-          } catch (canvasError) {
-            // Continue scanning even if canvas method fails
-          }
-        }
-        
-        // Continue scanning
-        if (isScanningRef.current) {
-          setTimeout(zxingScanLoop, 200);
         }
       };
 
