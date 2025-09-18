@@ -2,6 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+
+// Extend Window interface to include productDatabase
+declare global {
+  interface Window {
+    productDatabase: { [key: string]: { id: number; name: string; brand: string; price: number; category: string } };
+  }
+}
 import IntroScreen from '@/components/IntroScreen'
 import LoginScreen from '@/components/LoginScreen'
 import RegisterScreen from '@/components/RegisterScreen'
