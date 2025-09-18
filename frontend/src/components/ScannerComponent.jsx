@@ -304,22 +304,64 @@ const ScannerComponent = ({
         }
       };
 
-      // Start scanning with preferred method
+      // Add BarcodeDetector support
+      const barcodeDetectorSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+      let barcodeDetector = null;
+      if (barcodeDetectorSupported) {
+        try {
+          barcodeDetector = new window.BarcodeDetector({
+            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'data_matrix']
+          });
+          console.log('[Scanner][BarcodeDetector] Native BarcodeDetector initialized');
+        } catch (e) {
+          console.warn('[Scanner][BarcodeDetector] Initialization failed:', e);
+          barcodeDetector = null;
+        }
+      }
+
+      // Add barcodeDetectorScanLoop as the first detection loop
+      const barcodeDetectorScanLoop = async () => {
+        if (!isScanningRef.current || !videoRef.current || !barcodeDetector || !scannerReady) {
+          return;
+        }
+        try {
+          const barcodes = await barcodeDetector.detect(videoRef.current);
+          if (barcodes && barcodes.length > 0) {
+            const text = barcodes[0].rawValue;
+            console.log('[Scanner][BarcodeDetector] Detected:', text);
+            dispatchDetection(text);
+            setTimeout(() => {
+              if (isScanningRef.current) barcodeDetectorScanLoop();
+            }, 1500);
+            return;
+          }
+        } catch (error) {
+          console.warn('[Scanner][BarcodeDetector] Scan error:', error);
+        }
+        if (isScanningRef.current) {
+          setTimeout(barcodeDetectorScanLoop, 100);
+        }
+      };
+
+      // In startScanning, use BarcodeDetector first if available
       const startScanning = async () => {
         if (!scannerReady) {
           setTimeout(startScanning, 500);
           return;
         }
-        
-        // Try MediaPipe first for better accuracy
-        const mediaPipeReady = await initializeMediaPipe();
-        
-        if (mediaPipeReady && mpScannerRef.current) {
-          console.log('[Scanner] Using MediaPipe scanner');
-          rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
+        if (barcodeDetector) {
+          console.log('[Scanner] Using native BarcodeDetector');
+          barcodeDetectorScanLoop();
         } else {
-          console.log('[Scanner] Using ZXing scanner');
-          setTimeout(zxingScanLoop, 500);
+          // Try MediaPipe first for better accuracy
+          const mediaPipeReady = await initializeMediaPipe();
+          if (mediaPipeReady && mpScannerRef.current) {
+            console.log('[Scanner] Using MediaPipe scanner');
+            rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
+          } else {
+            console.log('[Scanner] Using ZXing scanner');
+            setTimeout(zxingScanLoop, 500);
+          }
         }
       };
       
