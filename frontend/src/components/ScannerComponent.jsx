@@ -41,46 +41,60 @@ const ScannerComponent = ({
   const initializeCamera = async () => {
     try {
       setStatusText('Initializing camera...');
-      await startCamera();
       
-      const stream = videoRef.current?.srcObject;
-      const track = stream?.getVideoTracks?.[0];
+      // Get list of available cameras
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
       
-      if (!track) {
-        throw new Error('No video track available');
+      // Select the best back camera
+      let selectedDeviceId = null;
+      for (const device of videoDevices) {
+        if (device.label.toLowerCase().includes('back') || 
+            device.label.toLowerCase().includes('rear') || 
+            device.label.toLowerCase().includes('environment')) {
+          selectedDeviceId = device.deviceId;
+          break;
+        }
       }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+          facingMode: selectedDeviceId ? undefined : 'environment',
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          frameRate: { ideal: 30, min: 15 }
+        }
+      });
+
+      if (!videoRef.current) {
+        throw new Error('Video element not available');
+      }
+
+      videoRef.current.srcObject = stream;
+      await new Promise((resolve) => {
+        videoRef.current.onloadedmetadata = resolve;
+      });
       
+      const track = stream.getVideoTracks()[0];
       cameraTrackRef.current = track;
+      
+      // Configure optimal settings
       const capabilities = track.getCapabilities();
       cameraCapsRef.current = capabilities;
       
-      // Configure camera for optimal barcode scanning
-      const constraints = {
-        advanced: []
+      const settings = {
+        advanced: [{
+          focusMode: capabilities.focusMode?.includes('continuous') ? 'continuous' : 'manual',
+          exposureMode: capabilities.exposureMode?.includes('continuous') ? 'continuous' : 'manual',
+          whiteBalanceMode: capabilities.whiteBalanceMode?.includes('continuous') ? 'continuous' : 'manual'
+        }]
       };
       
-      // Set focus mode for close-up scanning
-      if (capabilities.focusMode?.includes('continuous')) {
-        constraints.advanced.push({ focusMode: 'continuous' });
-      } else if (capabilities.focusMode?.includes('single-shot')) {
-        constraints.advanced.push({ focusMode: 'single-shot' });
-      }
+      await track.applyConstraints(settings);
       
-      // Enable torch support detection
       if (capabilities.torch) {
         setTorchSupported(true);
-      }
-      
-      // Set up zoom capabilities
-      if (capabilities.zoom && typeof capabilities.zoom.min === 'number') {
-        supportsZoomRef.current = true;
-        baseZoomRef.current = track.getSettings().zoom || 1;
-        currentZoomRef.current = baseZoomRef.current;
-      }
-      
-      // Apply constraints
-      if (constraints.advanced.length > 0) {
-        await track.applyConstraints(constraints);
       }
       
       setScannerReady(true);
@@ -88,8 +102,9 @@ const ScannerComponent = ({
       
     } catch (error) {
       console.error('Camera initialization failed:', error);
-      setStatusText('Camera initialization failed');
+      setStatusText(`Camera error: ${error.message}`);
       setScannerReady(false);
+      throw error;
     }
   };
 
