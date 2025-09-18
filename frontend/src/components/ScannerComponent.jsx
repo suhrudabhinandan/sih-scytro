@@ -1,11 +1,10 @@
-'use client'
+'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Scan, Plus, Minus, Trash2, Zap, ZapOff } from 'lucide-react';
-import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/browser';
-import { BinaryBitmap, HybridBinarizer, RGBLuminanceSource } from '@zxing/library';
+import { BrowserMultiFormatReader, BarcodeFormat } from '@zxing/browser';
+import { BinaryBitmap, HybridBinarizer, RGBLuminanceSource, DecodeHintType } from '@zxing/library';
 import jsQR from 'jsqr';
-// MediaPipe is imported dynamically at runtime to avoid build-time export issues across versions
 
 const ScannerComponent = ({ 
   videoRef, 
@@ -22,6 +21,7 @@ const ScannerComponent = ({
   const codeReaderRef = useRef(null);
   const isScanningRef = useRef(false);
   const [statusText, setStatusText] = useState('Scanning...');
+  const [cameraError, setCameraError] = useState('');
   const mpScannerRef = useRef(null);
   const rafIdRef = useRef(null);
   const cameraTrackRef = useRef(null);
@@ -42,11 +42,10 @@ const ScannerComponent = ({
   const initializeCamera = async () => {
     try {
       setStatusText('Initializing camera...');
-      
+      setCameraError('');
       // Get list of available cameras
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      
       // Select the best back camera
       let selectedDeviceId = null;
       for (const device of videoDevices) {
@@ -57,7 +56,6 @@ const ScannerComponent = ({
           break;
         }
       }
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
@@ -67,23 +65,18 @@ const ScannerComponent = ({
           frameRate: { ideal: 30, min: 15 }
         }
       });
-
       if (!videoRef.current) {
         throw new Error('Video element not available');
       }
-
       videoRef.current.srcObject = stream;
       await new Promise((resolve) => {
         videoRef.current.onloadedmetadata = resolve;
       });
-      
       const track = stream.getVideoTracks()[0];
       cameraTrackRef.current = track;
-      
       // Configure optimal settings
       const capabilities = track.getCapabilities();
       cameraCapsRef.current = capabilities;
-      
       const settings = {
         advanced: [{
           focusMode: capabilities.focusMode?.includes('continuous') ? 'continuous' : 'manual',
@@ -91,401 +84,78 @@ const ScannerComponent = ({
           whiteBalanceMode: capabilities.whiteBalanceMode?.includes('continuous') ? 'continuous' : 'manual'
         }]
       };
-      
       await track.applyConstraints(settings);
-      
       if (capabilities.torch) {
         setTorchSupported(true);
       }
-      
       setScannerReady(true);
       setStatusText('Camera ready - scanning...');
-      
     } catch (error) {
       console.error('Camera initialization failed:', error);
-      setStatusText(`Camera error: ${error.message}`);
+      setStatusText('Camera error: Unable to access camera');
+      setCameraError('Unable to access camera.\n\nPossible reasons:\n- Permission denied (check browser settings)\n- Not using HTTPS (required for camera access)\n- No camera device found\n- Another app is using the camera\n\nTry refreshing, allowing permissions, or using a different browser/device.');
       setScannerReady(false);
-      throw error;
     }
   };
 
-  useEffect(() => {
-    // Initialize scanner with enhanced configuration
-    const initializeScanner = async () => {
-      await initializeCamera();
+  // Audio feedback for successful scan
+  const playFeedback = () => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
       
-      // Configure ZXing reader with multiple formats
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (error) {
+      console.warn('Audio feedback failed:', error);
+    }
+  };
+
+  // Scanner initialization effect
+  useEffect(() => {
+    // Initialize camera first
+    initializeCamera();
+
+    const initializeScanner = async () => {
+      isScanningRef.current = true;
+
+      // Initialize ZXing reader
+      const reader = new BrowserMultiFormatReader();
       const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      const formats = [
+        BarcodeFormat.QR_CODE,
         BarcodeFormat.EAN_13,
         BarcodeFormat.EAN_8,
         BarcodeFormat.CODE_128,
         BarcodeFormat.CODE_39,
         BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-        BarcodeFormat.QR_CODE,
-        BarcodeFormat.DATA_MATRIX
-      ]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-      
-      codeReaderRef.current = new BrowserMultiFormatReader(hints);
-      isScanningRef.current = true;
+        BarcodeFormat.UPC_E
+      ];
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+      reader.setHints(hints);
+      codeReaderRef.current = reader;
 
-      // Utility for feedback
-      const playFeedback = () => {
-        // Play beep
-        const beep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
-        beep.play().catch(() => {});
-        // Vibrate (if supported)
-        if (navigator.vibrate) {
-          navigator.vibrate(80);
-        }
-      };
-
-      // MediaPipe initialization with better error handling
       const initializeMediaPipe = async () => {
         try {
-          setStatusText('Loading MediaPipe...');
           const MP = await import('@mediapipe/tasks-vision');
           const { FilesetResolver, BarcodeScanner } = MP;
-          
-          if (!FilesetResolver || !BarcodeScanner) {
-            throw new Error('MediaPipe components not available');
-          }
-          
-          const vision = await FilesetResolver.forVisionTasks(
-            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm'
-          );
-          
-          mpScannerRef.current = await BarcodeScanner.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/barcode_scanner/barcode_scanner/float16/latest/barcode_scanner.task',
-              delegate: 'GPU'
-            },
-            runningMode: 'VIDEO'
-          });
-          
-          setStatusText('MediaPipe ready - scanning...');
-          return true;
-        } catch (error) {
-          console.warn('[Scanner] MediaPipe initialization failed:', error);
-          setStatusText('Using ZXing scanner...');
-          mpScannerRef.current = null;
-          return false;
-        }
-      };
-
-      // In dispatchDetection, use the real product database if available
-      const dispatchDetection = (text) => {
-        console.log('[Scanner][DispatchDetection] Barcode/QR detected:', text);
-        playFeedback();
-        // Try to match barcode with real product database if available
-        if (typeof window !== 'undefined' && window.mockDatabase) {
-          const product = window.mockDatabase[text];
-          if (product) {
-            simulateBarcodeScan({ ...product, quantity: 1 });
-            setStatusText(`✓ Added: ${product.name}`);
-          } else {
-            // Unknown barcode
-            simulateBarcodeScan({ id: Date.now(), name: `Unknown (${text})`, brand: 'Unrecognized', price: 0, quantity: 1 });
-            setStatusText(`Unknown barcode: ${text}`);
-          }
-        } else {
-          // Fallback to mock product
-          const mockProduct = {
-            id: Date.now(),
-            name: `Product ${text}`,
-            brand: 'Test Brand',
-            price: Math.floor(Math.random() * 1000) + 100,
-            quantity: 1
-          };
-          simulateBarcodeScan(mockProduct);
-          setStatusText(`✓ Added: ${mockProduct.name}`);
-        }
-        setTimeout(() => {
-          if (scannerReady) setStatusText('Scanning...');
-        }, 2000);
-      };
-      
-      // Enhanced ZXing scanning with better detection, faster interval, and debug overlay
-      const zxingScanLoop = async () => {
-        if (!isScanningRef.current || !videoRef.current || !codeReaderRef.current || !scannerReady) {
-          return;
-        }
-        try {
-          if (canvasRef.current) {
-            const canvas = canvasRef.current;
-            const context = canvas.getContext('2d');
-            const video = videoRef.current;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // More aggressive image enhancement: increase contrast, brightness, and sharpen
-            let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            // Aggressive contrast/brightness
-            for (let i = 0; i < imageData.data.length; i += 4) {
-              // Brightness
-              imageData.data[i] = Math.min(255, imageData.data[i] * 1.3 + 20); // Red
-              imageData.data[i + 1] = Math.min(255, imageData.data[i + 1] * 1.3 + 20); // Green
-              imageData.data[i + 2] = Math.min(255, imageData.data[i + 2] * 1.3 + 20); // Blue
-            }
-            // Optional: simple sharpen kernel (3x3)
-            // (for performance, skip for now, but can be added if needed)
-            context.putImageData(imageData, 0, 0);
-            // Debug overlay: draw rectangle in the center
-            context.save();
-            context.strokeStyle = 'red';
-            context.lineWidth = 4;
-            context.strokeRect(canvas.width/4, canvas.height/4, canvas.width/2, canvas.height/2);
-            context.restore();
-            // ZXing barcode detection
-            const result = await codeReaderRef.current.decodeFromCanvas(canvas);
-            if (result && result.getText) {
-              const text = result.getText();
-              console.log('[Scanner][ZXing] Detected:', text);
-              dispatchDetection(text);
-              setTimeout(() => {
-                if (isScanningRef.current) {
-                  zxingScanLoop();
-                }
-              }, 500); // much faster re-scan
-              return;
-            }
-            // jsQR fallback for QR code
-            const imageDataForQR = context.getImageData(0, 0, canvas.width, canvas.height);
-            const qrResult = jsQR(imageDataForQR.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
-            if (qrResult && qrResult.data) {
-              // Draw debug box for QR
-              if (qrResult.location) {
-                context.save();
-                context.strokeStyle = 'lime';
-                context.lineWidth = 3;
-                context.beginPath();
-                context.moveTo(qrResult.location.topLeftCorner.x, qrResult.location.topLeftCorner.y);
-                context.lineTo(qrResult.location.topRightCorner.x, qrResult.location.topRightCorner.y);
-                context.lineTo(qrResult.location.bottomRightCorner.x, qrResult.location.bottomRightCorner.y);
-                context.lineTo(qrResult.location.bottomLeftCorner.x, qrResult.location.bottomLeftCorner.y);
-                context.closePath();
-                context.stroke();
-                context.restore();
-              }
-              console.log('[Scanner][jsQR] QR Detected:', qrResult.data);
-              dispatchDetection(qrResult.data);
-              setTimeout(() => {
-                if (isScanningRef.current) {
-                  zxingScanLoop();
-                }
-              }, 500); // much faster re-scan
-              return;
-            }
-          }
-        } catch (error) {
-          console.warn('[Scanner][ZXing/jsQR] Scan error:', error);
-        }
-        // Continue scanning with even shorter interval for faster detection
-        if (isScanningRef.current) {
-          setTimeout(zxingScanLoop, 40); // 25fps scan
-        }
-      };
-
-      // Optimized MediaPipe scanning loop
-      const mediaPipeScanLoop = () => {
-        if (!isScanningRef.current || !videoRef.current || !mpScannerRef.current || !scannerReady) {
-          return;
-        }
-        
-        try {
-          // Skip frames on slower devices but not too aggressively
-          frameSkipRef.current = (frameSkipRef.current + 1) % 3;
-          
-          if (frameSkipRef.current === 0) {
-            const now = performance.now();
-            const result = mpScannerRef.current.detectForVideo(videoRef.current, now);
-            
-            if (result?.barcodes?.length > 0) {
-              const barcode = result.barcodes[0];
-              const code = barcode.rawValue || barcode.displayValue;
               
-              if (code && code.length > 0) {
-                console.log('[Scanner][MediaPipe] Detected:', code);
-                dispatchDetection(code);
-                
-                // Pause briefly to avoid duplicates
-                setTimeout(() => {
-                  if (isScanningRef.current) {
-                    rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
-                  }
-                }, 1500);
-                return;
-              }
-            }
-          }
-        } catch (error) {
-          console.warn('[Scanner][MediaPipe] Scan error:', error);
-        }
-        
-        if (isScanningRef.current) {
-          rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
-        }
-      };
-
-      // Add BarcodeDetector support
-      const barcodeDetectorSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
-      let barcodeDetector = null;
-      if (barcodeDetectorSupported) {
-        try {
-          barcodeDetector = new window.BarcodeDetector({
-            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'data_matrix']
-          });
-          console.log('[Scanner][BarcodeDetector] Native BarcodeDetector initialized');
-        } catch (e) {
-          console.warn('[Scanner][BarcodeDetector] Initialization failed:', e);
-          barcodeDetector = null;
-        }
-      }
-
-      // Add barcodeDetectorScanLoop as the first detection loop, with debug overlay and faster interval
-      const barcodeDetectorScanLoop = async () => {
-        if (!isScanningRef.current || !videoRef.current || !barcodeDetector || !scannerReady) {
-          return;
-        }
-        try {
-          const barcodes = await barcodeDetector.detect(videoRef.current);
-          if (barcodes && barcodes.length > 0) {
-            // Draw debug overlay on canvas
-            if (canvasRef.current && barcodes[0].boundingBox) {
-              const canvas = canvasRef.current;
-              const context = canvas.getContext('2d');
-              canvas.width = videoRef.current.videoWidth;
-              canvas.height = videoRef.current.videoHeight;
-              context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-              context.save();
-              context.strokeStyle = 'cyan';
-              context.lineWidth = 4;
-              const box = barcodes[0].boundingBox;
-              context.strokeRect(box.x, box.y, box.width, box.height);
-              context.restore();
-            }
-            const text = barcodes[0].rawValue;
-            console.log('[Scanner][BarcodeDetector] Detected:', text);
-            dispatchDetection(text);
-            setTimeout(() => {
-              if (isScanningRef.current) barcodeDetectorScanLoop();
-            }, 500); // much faster re-scan
-            return;
-          }
-        } catch (error) {
-          console.warn('[Scanner][BarcodeDetector] Scan error:', error);
-        }
-        if (isScanningRef.current) {
-          setTimeout(barcodeDetectorScanLoop, 40); // 25fps scan
-        }
-      };
-
-      // In startScanning, use BarcodeDetector first if available
-      const startScanning = async () => {
-        if (!scannerReady) {
-          setTimeout(startScanning, 500);
-          return;
-        }
-        if (barcodeDetector) {
-          console.log('[Scanner] Using native BarcodeDetector');
-          barcodeDetectorScanLoop();
-        } else {
-          // Try MediaPipe first for better accuracy
-          const mediaPipeReady = await initializeMediaPipe();
-          if (mediaPipeReady && mpScannerRef.current) {
-            console.log('[Scanner] Using MediaPipe scanner');
-            rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
-          } else {
-            console.log('[Scanner] Using ZXing scanner');
-            setTimeout(zxingScanLoop, 500);
-          }
-        }
-      };
-      
-      startScanning();
-    };
-    
-    initializeScanner();
-
-    return () => {
-      isScanningRef.current = false;
-      setScannerReady(false);
-      
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-      
-      try {
-        mpScannerRef.current?.close?.();
-        mpScannerRef.current = null;
-      } catch (error) {
-        console.warn('Error closing MediaPipe scanner:', error);
-      }
-      
-      try {
-        codeReaderRef.current?.reset();
-        codeReaderRef.current = null;
-      } catch (error) {
-        console.warn('Error resetting ZXing reader:', error);
-      }
-      
-      stopCamera();
-    };
-  }, []);
-
-
-  // Add missing useEffect dependency to prevent stale closures
-  useEffect(() => {
-    // Initialize scanner with enhanced configuration
-    const initializeScanner = async () => {
-      await initializeCamera();
-      
-      // Configure ZXing reader with multiple formats
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-        BarcodeFormat.QR_CODE,
-        BarcodeFormat.DATA_MATRIX
-      ]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-      
-      codeReaderRef.current = new BrowserMultiFormatReader(hints);
-      isScanningRef.current = true;
-
-      // Utility for feedback
-      const playFeedback = () => {
-        // Play beep
-        const beep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+3y');
-        beep.play().catch(() => {});
-        // Vibrate (if supported)
-        if (navigator.vibrate) {
-          navigator.vibrate(80);
-        }
-      };
-
-      // MediaPipe initialization with better error handling
-      const initializeMediaPipe = async () => {
-        try {
-          setStatusText('Loading MediaPipe...');
-          const MP = await import('@mediapipe/tasks-vision');
-          const { FilesetResolver, BarcodeScanner } = MP;
-          
           if (!FilesetResolver || !BarcodeScanner) {
             throw new Error('MediaPipe components not available');
           }
-          
+              
           const vision = await FilesetResolver.forVisionTasks(
             'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm'
           );
-          
+              
           mpScannerRef.current = await BarcodeScanner.createFromOptions(vision, {
             baseOptions: {
               modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/barcode_scanner/barcode_scanner/float16/latest/barcode_scanner.task',
@@ -493,7 +163,7 @@ const ScannerComponent = ({
             },
             runningMode: 'VIDEO'
           });
-          
+              
           setStatusText('MediaPipe ready - scanning...');
           return true;
         } catch (error) {
@@ -547,48 +217,58 @@ const ScannerComponent = ({
           if (canvasRef.current) {
             const canvas = canvasRef.current;
             const context = canvas.getContext('2d');
+            if (!context) {
+              console.error('[Scanner] Failed to get canvas context');
+              return;
+            }
             const video = videoRef.current;
             
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Enhance image
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            for (let i = 0; i < imageData.data.length; i += 4) {
-              imageData.data[i] = imageData.data[i] * 1.2; // Red
-              imageData.data[i + 1] = imageData.data[i + 1] * 1.2; // Green
-              imageData.data[i + 2] = imageData.data[i + 2] * 1.2; // Blue
-            }
-            context.putImageData(imageData, 0, 0);
-            
-            // ZXing barcode detection
-            const result = await codeReaderRef.current.decodeFromCanvas(canvas);
-            if (result && result.getText) {
-              const text = result.getText();
-              console.log('[Scanner][ZXing] Detected:', text);
-              dispatchDetection(text);
+            try {
+              // Enhance image
+              const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+              for (let i = 0; i < imageData.data.length; i += 4) {
+                // Increase contrast and brightness with clipping prevention
+                imageData.data[i] = Math.min(255, imageData.data[i] * 1.2); // Red
+                imageData.data[i + 1] = Math.min(255, imageData.data[i + 1] * 1.2); // Green
+                imageData.data[i + 2] = Math.min(255, imageData.data[i + 2] * 1.2); // Blue
+              }
+              context.putImageData(imageData, 0, 0);
               
-              setTimeout(() => {
-                if (isScanningRef.current) {
-                  zxingScanLoop();
-                }
-              }, 1500);
-              return;
-            }
-            // jsQR fallback for QR code
-            const imageDataForQR = context.getImageData(0, 0, canvas.width, canvas.height);
-            const qrResult = jsQR(imageDataForQR.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
-            if (qrResult && qrResult.data) {
-              console.log('[Scanner][jsQR] QR Detected:', qrResult.data);
-              dispatchDetection(qrResult.data);
+              // ZXing barcode detection
+              const result = await codeReaderRef.current.decodeFromCanvas(canvas);
+              if (result && result.getText) {
+                const text = result.getText();
+                console.log('[Scanner][ZXing] Detected:', text);
+                dispatchDetection(text);
+                
+                setTimeout(() => {
+                  if (isScanningRef.current) {
+                    zxingScanLoop();
+                  }
+                }, 1500);
+                return;
+              }
               
-              setTimeout(() => {
-                if (isScanningRef.current) {
-                  zxingScanLoop();
-                }
-              }, 1500);
-              return;
+              // jsQR fallback for QR code
+              const imageDataForQR = context.getImageData(0, 0, canvas.width, canvas.height);
+              const qrResult = jsQR(imageDataForQR.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+              if (qrResult && qrResult.data) {
+                console.log('[Scanner][jsQR] QR Detected:', qrResult.data);
+                dispatchDetection(qrResult.data);
+                
+                setTimeout(() => {
+                  if (isScanningRef.current) {
+                    zxingScanLoop();
+                  }
+                }, 1500);
+                return;
+              }
+            } catch (innerError) {
+              console.warn('[Scanner][ZXing/jsQR] Inner scan error:', innerError);
             }
           }
         } catch (error) {
@@ -773,16 +453,50 @@ const ScannerComponent = ({
         setTimeout(() => setStatusText('Scanning...'), 800);
       } catch {
         // fallback to CSS scale
-        const css = Math.min(3, Math.max(1, value));
-        setCssScale(css);
-        setStatusText(`Zoom (preview): ${css.toFixed(2)}x`);
-        setTimeout(() => setStatusText('Scanning...'), 800);
+        setCssScale(clamped);
       }
-    } else {
-      const css = Math.min(3, Math.max(1, value));
-      setCssScale(css);
-      setStatusText(`Zoom (preview): ${css.toFixed(2)}x`);
-      setTimeout(() => setStatusText('Scanning...'), 800);
+    }
+  };
+
+  // Zoom in/out buttons
+  const handleZoomIn = async () => {
+    await applyZoom(currentZoomRef.current + 0.5);
+  };
+
+  const handleZoomOut = async () => {
+    await applyZoom(currentZoomRef.current - 0.5);
+  };
+
+  // Touch gesture handlers for pinch zoom
+  const handlePointerDown = (e) => {
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2) {
+      const points = Array.from(pointersRef.current.values());
+      pinchStartDistRef.current = Math.hypot(
+        points[0].x - points[1].x,
+        points[0].y - points[1].y
+      );
+      pinchStartZoomRef.current = currentZoomRef.current;
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (pointersRef.current.size !== 2) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const points = Array.from(pointersRef.current.values());
+    const currentDist = Math.hypot(
+      points[0].x - points[1].x,
+      points[0].y - points[1].y
+    );
+    const scale = currentDist / pinchStartDistRef.current;
+    applyZoom(pinchStartZoomRef.current * scale);
+  };
+
+  const handlePointerUp = (e) => {
+    pointersRef.current.delete(e.pointerId);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchStartDistRef.current = 0;
     }
   };
 
@@ -822,10 +536,8 @@ const ScannerComponent = ({
     e.currentTarget.releasePointerCapture?.(e.pointerId); // Add cleanup
   };
 
-  // Add force push command for git
-  ```bash
-  git push -f origin main
-  ```
+  // Removed stray markdown code block that caused syntax errors
+  // (Accidentally included a bash code fence in JSX file.)
 
   const onWheel = (e) => {
     const delta = e.deltaY;
@@ -867,46 +579,56 @@ const ScannerComponent = ({
       </div>
 
       <div className="flex-1 relative" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel}>
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          autoPlay
-          playsInline
-          muted
-          style={{ transform: cssScale !== 1 ? `scale(${cssScale})` : undefined, transformOrigin: 'center center' }}
-        />
-        <canvas ref={canvasRef} className="hidden" />
-        
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className={`w-72 h-72 border-2 rounded-3xl relative transition-all duration-300 ${
-            scannerReady ? 'border-yellow-400/70 scan-pulse' : 'border-yellow-400/40'
-          }`}>
-            {/* Focus ring animation */}
-            {scannerReady && <div className="scan-focus"></div>}
-            
-            {/* Enhanced scanning line */}
-            {scannerReady && <div className="scan-line"></div>}
-            
-            {/* Center crosshair */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-0.5 bg-yellow-400/60 rounded-full"></div>
-              <div className="absolute w-0.5 h-8 bg-yellow-400/60 rounded-full"></div>
+        {cameraError ? (
+          <div className="flex flex-col items-center justify-center h-full p-8">
+            <div className="text-red-500 text-lg font-bold mb-4">{cameraError}</div>
+            <button
+              onClick={initializeCamera}
+              className="px-6 py-3 bg-yellow-500 text-white font-bold rounded-xl shadow hover:bg-yellow-600 transition"
+            >
+              Retry Camera Access
+            </button>
+          </div>
+        ) : (
+          <>
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              autoPlay
+              playsInline
+              muted
+              style={{ transform: cssScale !== 1 ? `scale(${cssScale})` : undefined, transformOrigin: 'center center' }}
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className={`w-72 h-72 border-2 rounded-3xl relative transition-all duration-300 ${
+                scannerReady ? 'border-yellow-400/70 scan-pulse' : 'border-yellow-400/40'
+              }`}>
+                {/* Focus ring animation */}
+                {scannerReady && <div className="scan-focus"></div>}
+                {/* Enhanced scanning line */}
+                {scannerReady && <div className="scan-line"></div>}
+                {/* Center crosshair */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-0.5 bg-yellow-400/60 rounded-full"></div>
+                  <div className="absolute w-0.5 h-8 bg-yellow-400/60 rounded-full"></div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        
-        <div className="absolute bottom-1/4 left-4 right-4 text-center">
-          <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-all duration-300 ${
-            scannerReady 
-              ? 'bg-green-500/20 border border-green-400/30 text-green-300'
-              : 'bg-yellow-500/20 border border-yellow-400/30 text-yellow-300'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${
-              scannerReady ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-bounce'
-            }`}></div>
-            <span>{statusText}</span>
-          </div>
-        </div>
+            <div className="absolute bottom-1/4 left-4 right-4 text-center">
+              <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-all duration-300 ${
+                scannerReady 
+                  ? 'bg-green-500/20 border border-green-400/30 text-green-300'
+                  : 'bg-yellow-500/20 border border-yellow-400/30 text-yellow-300'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  scannerReady ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-bounce'
+                }`}></div>
+                <span>{statusText}</span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-t-3xl p-6 max-h-80 flex flex-col">
