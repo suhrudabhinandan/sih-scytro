@@ -18,10 +18,10 @@ export const metadata: Metadata = {
   description: 'Self-Mobile Checkout App - Scan • Pay • Go',
   icons: {
     icon: [
-      { url: '/favicon.ico' },
+      { url: '/fav.ico' },
       { url: '/icon.svg', type: 'image/svg+xml' },
     ],
-    shortcut: [{ url: '/favicon.ico' }],
+    shortcut: [{ url: '/fav.ico' }],
   },
 }
 
@@ -34,8 +34,8 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="icon" type="image/x-icon" href="/fav.ico" />
+        <link rel="shortcut icon" href="/fav.ico" />
       </head>
       <body className={`${inter.className} ${vierkant.variable}`}>
         <div className="max-w-md mx-auto bg-white min-h-screen overflow-hidden">

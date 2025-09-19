@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="64" fill="#FEE57F"/>
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M128 160C128 144.536 140.536 132 156 132H356C371.464 132 384 144.536 384 160V352C384 367.464 371.464 380 356 380H156C140.536 380 128 367.464 128 352V160ZM356 164H156C158.209 164 160 165.791 160 168V344C160 346.209 158.209 348 156 348H356C353.791 348 352 346.209 352 344V168C352 165.791 353.791 164 356 164Z" fill="#1E1E1E"/>
+  <rect x="192" y="196" width="128" height="24" rx="12" fill="#1E1E1E"/>
+  <rect x="192" y="244" width="128" height="24" rx="12" fill="#1E1E1E"/>
+  <rect x="192" y="292" width="128" height="24" rx="12" fill="#1E1E1E"/>
+</svg>
