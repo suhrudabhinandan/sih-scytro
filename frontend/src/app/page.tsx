@@ -14,7 +14,7 @@ import LoginScreen from '@/components/LoginScreen'
 import RegisterScreen from '@/components/RegisterScreen'
 import RegisterUserForm from '@/components/RegisterUserForm'
 import UserDashboard from '@/components/UserDashboard'
-import ScannerComponent from '@/components/ScannerComponent'
+import WorkingScannerComponent from '@/components/WorkingScannerComponent'
 import CartComponent from '@/components/CartComponent'
 import PaymentComponent from '@/components/PaymentComponent'
 import SecurityDashboard from '@/components/SecurityDashboard'
@@ -38,8 +38,6 @@ export default function Home() {
   const [otpSent, setOtpSent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loginType, setLoginType] = useState('user')
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [isScanning, setIsScanning] = useState(false)
   const [recentActivity, setRecentActivity] = useState<any[]>([])
   const recentScansRef = useRef<{[code: string]: number}>({})
   const unknownBarcodeMapRef = useRef<{[code: string]: number}>({})
@@ -67,8 +65,6 @@ export default function Home() {
     }
   }
   
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Animation classes
@@ -76,60 +72,6 @@ export default function Home() {
   const fadeIn = "animate-in fade-in duration-500"
   const bounceIn = "animate-in zoom-in duration-200 ease-out"
 
-  // Camera functions
-  const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      })
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-        videoRef.current.play()
-      }
-      
-      setStream(mediaStream)
-      setIsScanning(true)
-      scanForBarcode()
-    } catch (error) {
-      console.error('Camera access denied:', error)
-      alert('Camera access is required for scanning. Please allow camera access.')
-    }
-  }
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
-    }
-    setIsScanning(false)
-  }
-
-  const scanForBarcode = () => {
-    if (!videoRef.current || !canvasRef.current) return
-
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    const context = canvas.getContext('2d')
-
-    if (!context) return
-
-    const scanFrame = () => {
-      if (!isScanning) return
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      context.drawImage(video, 0, 0, canvas.width, canvas.height)
-      requestAnimationFrame(scanFrame)
-    }
-
-    video.addEventListener('loadedmetadata', () => {
-      scanFrame()
-    })
-  }
 
   // Simulate barcode scanning
   const simulateBarcodeScan = (product: any) => {
@@ -317,11 +259,6 @@ export default function Home() {
     }
   }, [productDatabase])
   
-  useEffect(() => {
-    return () => {
-      stopCamera()
-    }
-  }, [])
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -430,11 +367,7 @@ export default function Home() {
           slideIn={slideIn} 
         />
       case 'scanner': 
-        return <ScannerComponent 
-          videoRef={videoRef}
-          canvasRef={canvasRef}
-          startCamera={startCamera}
-          stopCamera={stopCamera}
+        return <WorkingScannerComponent 
           setCurrentScreen={setCurrentScreen}
           scannedProducts={scannedProducts}
           simulateBarcodeScan={simulateBarcodeScan}
