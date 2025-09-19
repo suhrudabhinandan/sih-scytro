@@ -2,9 +2,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Scan, Plus, Minus, Trash2 } from 'lucide-react';
-import { BrowserMultiFormatReader, BarcodeFormat } from '@zxing/browser';
-import { BinaryBitmap, HybridBinarizer, RGBLuminanceSource, DecodeHintType } from '@zxing/library';
-import jsQR from 'jsqr';
 
 const ScannerComponent = ({ 
   videoRef, 
@@ -18,7 +15,6 @@ const ScannerComponent = ({
   removeProduct, 
   slideIn 
 }) => {
-  const codeReaderRef = useRef(null);
   const isScanningRef = useRef(false);
   const [statusText, setStatusText] = useState('Scanning...');
   const [cameraError, setCameraError] = useState('');
@@ -158,14 +154,6 @@ const ScannerComponent = ({
           mpScannerRef.current = null;
         } catch (error) {
           console.warn('[Scanner] Error closing MediaPipe scanner:', error);
-        }
-        
-        // Reset ZXing reader
-        try {
-          codeReaderRef.current?.reset();
-          codeReaderRef.current = null;
-        } catch (error) {
-          console.warn('[Scanner] Error resetting ZXing reader:', error);
         }
         
         // Stop camera stream
@@ -413,22 +401,6 @@ const ScannerComponent = ({
     const initializeScanner = async () => {
       isScanningRef.current = true;
 
-      // Initialize ZXing reader
-      const reader = new BrowserMultiFormatReader();
-      const hints = new Map();
-      const formats = [
-        BarcodeFormat.QR_CODE,
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E
-      ];
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-      reader.setHints(hints);
-      codeReaderRef.current = reader;
-
       const initializeMediaPipe = async () => {
         try {
           const MP = await import('@mediapipe/tasks-vision');
@@ -541,29 +513,20 @@ const ScannerComponent = ({
         }
       };
 
-      // Start the most appropriate scanning method
+      // Start MediaPipe scanning
       const startScanning = async () => {
         if (!scannerReady) {
           setTimeout(startScanning, 500);
           return;
         }
         
-        // Priority order: Native BarcodeDetector > MediaPipe > ZXing
-        if (barcodeDetector) {
-          console.log('[Scanner] Using native BarcodeDetector');
-          setStatusText('BarcodeDetector ready - scanning...');
-          barcodeDetectorScanLoop();
+        const mediaPipeReady = await initializeMediaPipe();
+        if (mediaPipeReady && mpScannerRef.current) {
+          console.log('[Scanner] Using MediaPipe scanner');
+          rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
         } else {
-          // Try MediaPipe initialization
-          const mediaPipeReady = await initializeMediaPipe();
-          if (mediaPipeReady && mpScannerRef.current) {
-            console.log('[Scanner] Using MediaPipe scanner');
-            rafIdRef.current = requestAnimationFrame(mediaPipeScanLoop);
-          } else {
-            console.log('[Scanner] Using ZXing scanner');
-            setStatusText('ZXing ready - scanning...');
-            setTimeout(zxingScanLoop, 500);
-          }
+          setStatusText('Failed to initialize scanner');
+          console.error('[Scanner] MediaPipe initialization failed');
         }
       };
       
