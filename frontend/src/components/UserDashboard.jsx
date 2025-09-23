@@ -8,7 +8,7 @@ const UserDashboard = ({ setCurrentScreen, scannedProducts, slideIn }) => (
     <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 p-6 text-white">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">Good morning</h1>
+          <h1 className="text-2xl font-bold text-white">Good Afternoon</h1>
           <p className="text-white/90 text-sm font-medium">Ready to shop?</p>
         </div>
         <div className="relative">
